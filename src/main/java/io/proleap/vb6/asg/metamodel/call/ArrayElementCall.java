@@ -1,18 +1,13 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.call;
 
-import io.proleap.vb6.asg.metamodel.Variable;
+public interface ArrayElementCall extends VariableCall {
 
-public interface ArrayElementCall extends Call {
-
-	Variable getVariable();
-
-	void setVariable(Variable variable);
 }

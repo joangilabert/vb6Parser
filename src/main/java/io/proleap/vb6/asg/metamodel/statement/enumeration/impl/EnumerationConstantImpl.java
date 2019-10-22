@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.enumeration.impl;
@@ -35,7 +35,7 @@ public class EnumerationConstantImpl extends ScopedElementImpl implements Enumer
 
 	public EnumerationConstantImpl(final String name, final int position, final Enumeration enumeration,
 			final EnumerationStmt_ConstantContext ctx) {
-		super(enumeration.getModule(), enumeration.getScope(), ctx);
+		super(enumeration.getModule().getProgram(), enumeration.getModule(), enumeration.getScope(), ctx);
 
 		this.ctx = ctx;
 		this.enumeration = enumeration;

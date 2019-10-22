@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -19,15 +19,15 @@ public class AttributeImpl extends ScopedElementImpl implements Attribute {
 
 	protected final AttributeStmtContext ctx;
 
+	protected Literal literal;
+
 	protected final String name;
 
 	protected final Type type;
 
-	protected Literal value;
-
 	public AttributeImpl(final String name, final Type type, final Module module, final Scope scope,
 			final AttributeStmtContext ctx) {
-		super(module, scope, ctx);
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 		this.name = name;
@@ -37,6 +37,11 @@ public class AttributeImpl extends ScopedElementImpl implements Attribute {
 	@Override
 	public AttributeStmtContext getCtx() {
 		return ctx;
+	}
+
+	@Override
+	public Literal getLiteral() {
+		return literal;
 	}
 
 	@Override
@@ -50,13 +55,8 @@ public class AttributeImpl extends ScopedElementImpl implements Attribute {
 	}
 
 	@Override
-	public Literal getValue() {
-		return value;
-	}
-
-	@Override
-	public void setValue(final Literal value) {
-		this.value = value;
+	public void setLiteral(final Literal literal) {
+		this.literal = literal;
 	}
 
 	@Override

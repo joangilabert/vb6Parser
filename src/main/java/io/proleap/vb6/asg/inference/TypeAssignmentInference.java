@@ -1,26 +1,32 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.inference;
 
-import io.proleap.vb6.VisualBasic6Parser;
+import io.proleap.vb6.VisualBasic6Parser.ArgCallContext;
+import io.proleap.vb6.VisualBasic6Parser.ForNextStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.LetStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.RedimSubStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.SetStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.VsAssignContext;
+import io.proleap.vb6.asg.metamodel.Program;
 
 public interface TypeAssignmentInference {
 
-	void addTypeAssignment(VisualBasic6Parser.ArgCallContext ctx);
+	void addTypeAssignment(ArgCallContext ctx, Program program);
 
-	void addTypeAssignment(VisualBasic6Parser.ForNextStmtContext ctx);
+	void addTypeAssignment(ForNextStmtContext ctx, Program program);
 
-	void addTypeAssignment(VisualBasic6Parser.LetStmtContext ctx);
+	void addTypeAssignment(LetStmtContext ctx, Program program);
 
-	void addTypeAssignment(VisualBasic6Parser.RedimSubStmtContext ctx);
+	void addTypeAssignment(RedimSubStmtContext ctx, Program program);
 
-	void addTypeAssignment(VisualBasic6Parser.SetStmtContext ctx);
+	void addTypeAssignment(SetStmtContext ctx, Program program);
 
-	void addTypeAssignment(VisualBasic6Parser.VsAssignContext ctx);
+	void addTypeAssignment(VsAssignContext ctx, Program program);
 }

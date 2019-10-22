@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.inference.impl;
@@ -14,10 +14,10 @@ import java.util.Set;
 import io.proleap.vb6.asg.inference.TypeInference;
 import io.proleap.vb6.asg.metamodel.DefType;
 import io.proleap.vb6.asg.metamodel.Module;
-import io.proleap.vb6.asg.metamodel.VbBaseType;
 import io.proleap.vb6.asg.metamodel.DefType.LetterRange;
 import io.proleap.vb6.asg.metamodel.type.Type;
-import io.proleap.vb6.asg.util.StringUtils;
+import io.proleap.vb6.asg.metamodel.type.VbBaseType;
+import io.proleap.vb6.asg.util.AsgStringUtils;
 
 public class TypeInferenceImpl implements TypeInference {
 
@@ -110,8 +110,8 @@ public class TypeInferenceImpl implements TypeInference {
 						upper = null;
 					}
 
-					final boolean geq = StringUtils.geq(firstLetter, lower);
-					final boolean leq = StringUtils.leq(firstLetter, upper);
+					final boolean geq = AsgStringUtils.geq(firstLetter, lower);
+					final boolean leq = AsgStringUtils.leq(firstLetter, upper);
 
 					if (geq && leq) {
 						typeFromDefType = defType.getBaseType();

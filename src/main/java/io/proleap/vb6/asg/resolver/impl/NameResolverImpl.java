@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.resolver.impl;
@@ -25,7 +25,6 @@ import io.proleap.vb6.VisualBasic6Parser.ECS_ProcedureCallContext;
 import io.proleap.vb6.VisualBasic6Parser.EnumerationStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.EnumerationStmt_ConstantContext;
 import io.proleap.vb6.VisualBasic6Parser.ForEachStmtContext;
-import io.proleap.vb6.VisualBasic6Parser.ForNextStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.FunctionStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ICS_B_MemberProcedureCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ICS_B_ProcedureCallContext;
@@ -63,7 +62,7 @@ public class NameResolverImpl implements NameResolver {
 	}
 
 	public String determineName(final ArgDefaultValueContext ctx) {
-		final String result = determineName(ctx.ambiguousIdentifier());
+		final String result = determineName(ctx.valueStmt());
 		return result;
 	}
 
@@ -100,11 +99,6 @@ public class NameResolverImpl implements NameResolver {
 	public String determineName(final ForEachStmtContext ctx) {
 		final String elementVariableName = determineName(ctx.ambiguousIdentifier(0));
 		return elementVariableName;
-	}
-
-	public String determineName(final ForNextStmtContext ctx) {
-		final String iteratorVariableName = determineName(ctx.ambiguousIdentifier(0));
-		return iteratorVariableName;
 	}
 
 	public String determineName(final ICS_B_MemberProcedureCallContext ctx) {
@@ -197,8 +191,6 @@ public class NameResolverImpl implements NameResolver {
 			result = determineName((ECS_ProcedureCallContext) ctx);
 		} else if (ctx instanceof ForEachStmtContext) {
 			result = determineName((ForEachStmtContext) ctx);
-		} else if (ctx instanceof ForNextStmtContext) {
-			result = determineName((ForNextStmtContext) ctx);
 		} else if (ctx instanceof FunctionStmtContext) {
 			result = determineName((FunctionStmtContext) ctx);
 		} else if (ctx instanceof ICS_B_ProcedureCallContext) {

@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -16,6 +16,7 @@ import static io.proleap.vb6.asg.util.CastUtils.castApiProperty;
 import static io.proleap.vb6.asg.util.CastUtils.castArg;
 import static io.proleap.vb6.asg.util.CastUtils.castComplexType;
 import static io.proleap.vb6.asg.util.CastUtils.castConst;
+import static io.proleap.vb6.asg.util.CastUtils.castElementVariable;
 import static io.proleap.vb6.asg.util.CastUtils.castEnumeration;
 import static io.proleap.vb6.asg.util.CastUtils.castEnumerationConstant;
 import static io.proleap.vb6.asg.util.CastUtils.castFunction;
@@ -25,6 +26,8 @@ import static io.proleap.vb6.asg.util.CastUtils.castPropertyGet;
 import static io.proleap.vb6.asg.util.CastUtils.castPropertyLet;
 import static io.proleap.vb6.asg.util.CastUtils.castPropertySet;
 import static io.proleap.vb6.asg.util.CastUtils.castSub;
+import static io.proleap.vb6.asg.util.CastUtils.castTypeElement;
+import static io.proleap.vb6.asg.util.CastUtils.castTypeStmtType;
 import static io.proleap.vb6.asg.util.CastUtils.castVariable;
 
 import java.util.ArrayList;
@@ -33,22 +36,36 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.antlr.v4.runtime.tree.ParseTree;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.proleap.vb6.VisualBasic6Parser;
+import io.proleap.vb6.VisualBasic6Parser.AmbiguousIdentifierContext;
+import io.proleap.vb6.VisualBasic6Parser.AppActivateStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgCallContext;
+import io.proleap.vb6.VisualBasic6Parser.ArgContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgsCallContext;
+import io.proleap.vb6.VisualBasic6Parser.BeepStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.BlockIfThenElseContext;
 import io.proleap.vb6.VisualBasic6Parser.CaseCondElseContext;
 import io.proleap.vb6.VisualBasic6Parser.CaseCondExprContext;
 import io.proleap.vb6.VisualBasic6Parser.CaseCondExprIsContext;
 import io.proleap.vb6.VisualBasic6Parser.CaseCondExprToContext;
 import io.proleap.vb6.VisualBasic6Parser.CaseCondExprValueContext;
+import io.proleap.vb6.VisualBasic6Parser.ChDirStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.ChDriveStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.CloseStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.ConstStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ConstSubStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.DateStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.DeftypeStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.DeleteSettingStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.DictionaryCallStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.DoLoopStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ECS_MemberProcedureCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ECS_ProcedureCallContext;
+import io.proleap.vb6.VisualBasic6Parser.EventStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ExitStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ExplicitCallStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ForEachStmtContext;
@@ -59,22 +76,34 @@ import io.proleap.vb6.VisualBasic6Parser.ICS_S_DictionaryCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ICS_S_MemberCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ICS_S_ProcedureOrArrayCallContext;
 import io.proleap.vb6.VisualBasic6Parser.ICS_S_VariableOrProcedureCallContext;
+import io.proleap.vb6.VisualBasic6Parser.IfBlockStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.IfConditionStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.IfElseBlockStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.IfElseIfBlockStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ImplicitCallStmt_InBlockContext;
 import io.proleap.vb6.VisualBasic6Parser.ImplicitCallStmt_InStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.InlineIfThenElseContext;
 import io.proleap.vb6.VisualBasic6Parser.LetStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.LineLabelContext;
 import io.proleap.vb6.VisualBasic6Parser.LiteralContext;
 import io.proleap.vb6.VisualBasic6Parser.OnErrorStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.OpenStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.PrintStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.PublicPrivateGlobalVisibilityContext;
+import io.proleap.vb6.VisualBasic6Parser.PublicPrivateVisibilityContext;
 import io.proleap.vb6.VisualBasic6Parser.RedimSubStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ResumeStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.SC_CaseContext;
 import io.proleap.vb6.VisualBasic6Parser.SC_CondContext;
 import io.proleap.vb6.VisualBasic6Parser.SC_CondExprContext;
+import io.proleap.vb6.VisualBasic6Parser.SaveSettingStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.SelectCaseStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.SetStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.ValueStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.VariableListStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.VariableStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.VariableSubStmtContext;
+import io.proleap.vb6.VisualBasic6Parser.VisibilityContext;
 import io.proleap.vb6.VisualBasic6Parser.VsAddContext;
 import io.proleap.vb6.VisualBasic6Parser.VsAddressOfContext;
 import io.proleap.vb6.VisualBasic6Parser.VsAmpContext;
@@ -108,7 +137,8 @@ import io.proleap.vb6.VisualBasic6Parser.VsTypeOfContext;
 import io.proleap.vb6.VisualBasic6Parser.VsXorContext;
 import io.proleap.vb6.VisualBasic6Parser.WhileWendStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.WithStmtContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.VisualBasic6Parser.WriteStmtContext;
+import io.proleap.vb6.asg.inference.impl.TypeAssignmentInferenceImpl;
 import io.proleap.vb6.asg.metamodel.ASGElement;
 import io.proleap.vb6.asg.metamodel.Arg;
 import io.proleap.vb6.asg.metamodel.Declaration;
@@ -118,10 +148,13 @@ import io.proleap.vb6.asg.metamodel.ModelElement;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.NamedElement;
 import io.proleap.vb6.asg.metamodel.Procedure;
+import io.proleap.vb6.asg.metamodel.Program;
 import io.proleap.vb6.asg.metamodel.Scope;
 import io.proleap.vb6.asg.metamodel.ScopedElement;
 import io.proleap.vb6.asg.metamodel.StandardModule;
+import io.proleap.vb6.asg.metamodel.TypeElement;
 import io.proleap.vb6.asg.metamodel.Variable;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumeration;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumerationConstant;
 import io.proleap.vb6.asg.metamodel.api.ApiModule;
@@ -132,10 +165,12 @@ import io.proleap.vb6.asg.metamodel.call.ApiEnumerationConstantCall;
 import io.proleap.vb6.asg.metamodel.call.ApiProcedureCall;
 import io.proleap.vb6.asg.metamodel.call.ApiPropertyCall;
 import io.proleap.vb6.asg.metamodel.call.ArgCall;
+import io.proleap.vb6.asg.metamodel.call.ArgValueAssignmentsContainer;
 import io.proleap.vb6.asg.metamodel.call.ArrayElementCall;
 import io.proleap.vb6.asg.metamodel.call.Call;
 import io.proleap.vb6.asg.metamodel.call.Call.CallContext;
 import io.proleap.vb6.asg.metamodel.call.ConstantCall;
+import io.proleap.vb6.asg.metamodel.call.ElementVariableCall;
 import io.proleap.vb6.asg.metamodel.call.EnumerationCall;
 import io.proleap.vb6.asg.metamodel.call.EnumerationConstantCall;
 import io.proleap.vb6.asg.metamodel.call.FunctionCall;
@@ -145,6 +180,7 @@ import io.proleap.vb6.asg.metamodel.call.PropertyLetCall;
 import io.proleap.vb6.asg.metamodel.call.PropertySetCall;
 import io.proleap.vb6.asg.metamodel.call.ReturnValueCall;
 import io.proleap.vb6.asg.metamodel.call.SubCall;
+import io.proleap.vb6.asg.metamodel.call.TypeElementCall;
 import io.proleap.vb6.asg.metamodel.call.VariableCall;
 import io.proleap.vb6.asg.metamodel.call.impl.ApiEnumerationCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.ApiEnumerationConstantCallImpl;
@@ -155,6 +191,7 @@ import io.proleap.vb6.asg.metamodel.call.impl.ArrayElementCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.CallDelegateImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.ConstantCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.DictionaryCallImpl;
+import io.proleap.vb6.asg.metamodel.call.impl.ElementVariableCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.EnumerationCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.EnumerationConstantCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.FunctionCallImpl;
@@ -165,27 +202,69 @@ import io.proleap.vb6.asg.metamodel.call.impl.PropertyGetCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.PropertyLetCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.PropertySetCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.ReturnValueCallImpl;
+import io.proleap.vb6.asg.metamodel.call.impl.SubCallImpl;
+import io.proleap.vb6.asg.metamodel.call.impl.TypeElementCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.UndefinedCallImpl;
 import io.proleap.vb6.asg.metamodel.call.impl.VariableCallImpl;
 import io.proleap.vb6.asg.metamodel.statement.Statement;
+import io.proleap.vb6.asg.metamodel.statement.appactivate.AppActivate;
+import io.proleap.vb6.asg.metamodel.statement.appactivate.impl.AppActivateImpl;
+import io.proleap.vb6.asg.metamodel.statement.beep.Beep;
+import io.proleap.vb6.asg.metamodel.statement.beep.impl.BeepImpl;
+import io.proleap.vb6.asg.metamodel.statement.callstmt.CallStmt;
+import io.proleap.vb6.asg.metamodel.statement.callstmt.impl.CallStmtImpl;
+import io.proleap.vb6.asg.metamodel.statement.chdir.ChDir;
+import io.proleap.vb6.asg.metamodel.statement.chdir.impl.ChDirImpl;
+import io.proleap.vb6.asg.metamodel.statement.chdrive.ChDrive;
+import io.proleap.vb6.asg.metamodel.statement.chdrive.impl.ChDriveImpl;
+import io.proleap.vb6.asg.metamodel.statement.close.Close;
+import io.proleap.vb6.asg.metamodel.statement.close.impl.CloseImpl;
 import io.proleap.vb6.asg.metamodel.statement.constant.Constant;
 import io.proleap.vb6.asg.metamodel.statement.constant.impl.ConstantImpl;
+import io.proleap.vb6.asg.metamodel.statement.date.Date;
+import io.proleap.vb6.asg.metamodel.statement.date.impl.DateImpl;
+import io.proleap.vb6.asg.metamodel.statement.deftype.Deftype;
+import io.proleap.vb6.asg.metamodel.statement.deftype.impl.DeftypeImpl;
+import io.proleap.vb6.asg.metamodel.statement.deletesetting.DeleteSetting;
+import io.proleap.vb6.asg.metamodel.statement.deletesetting.impl.DeleteSettingImpl;
+import io.proleap.vb6.asg.metamodel.statement.doloop.DoLoop;
+import io.proleap.vb6.asg.metamodel.statement.doloop.impl.DoLoopImpl;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.Enumeration;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.EnumerationConstant;
+import io.proleap.vb6.asg.metamodel.statement.event.Event;
+import io.proleap.vb6.asg.metamodel.statement.event.impl.EventImpl;
 import io.proleap.vb6.asg.metamodel.statement.exit.Exit;
 import io.proleap.vb6.asg.metamodel.statement.exit.Exit.ExitType;
 import io.proleap.vb6.asg.metamodel.statement.exit.impl.ExitImpl;
+import io.proleap.vb6.asg.metamodel.statement.explicitcallstmt.ExplicitCallStmt;
+import io.proleap.vb6.asg.metamodel.statement.explicitcallstmt.impl.ExplicitCallStmtImpl;
+import io.proleap.vb6.asg.metamodel.statement.foreach.ElementVariable;
 import io.proleap.vb6.asg.metamodel.statement.foreach.ForEach;
+import io.proleap.vb6.asg.metamodel.statement.foreach.impl.ElementVariableImpl;
 import io.proleap.vb6.asg.metamodel.statement.foreach.impl.ForEachImpl;
 import io.proleap.vb6.asg.metamodel.statement.fornext.ForNext;
 import io.proleap.vb6.asg.metamodel.statement.fornext.impl.ForNextImpl;
 import io.proleap.vb6.asg.metamodel.statement.function.Function;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.BlockIfThenElse;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.ElseBlock;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.ElseIfBlock;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.IfBlock;
 import io.proleap.vb6.asg.metamodel.statement.ifstmt.IfCondition;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.InlineIfThenElse;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.BlockIfThenElseImpl;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.ElseBlockImpl;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.ElseIfBlockImpl;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.IfBlockImpl;
 import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.IfConditionImpl;
+import io.proleap.vb6.asg.metamodel.statement.ifstmt.impl.InlineIfThenElseImpl;
 import io.proleap.vb6.asg.metamodel.statement.let.Let;
 import io.proleap.vb6.asg.metamodel.statement.let.impl.LetImpl;
 import io.proleap.vb6.asg.metamodel.statement.onerror.OnError;
 import io.proleap.vb6.asg.metamodel.statement.onerror.impl.OnErrorImpl;
+import io.proleap.vb6.asg.metamodel.statement.open.Open;
+import io.proleap.vb6.asg.metamodel.statement.open.impl.OpenImpl;
+import io.proleap.vb6.asg.metamodel.statement.print.Print;
+import io.proleap.vb6.asg.metamodel.statement.print.impl.PrintImpl;
 import io.proleap.vb6.asg.metamodel.statement.property.get.PropertyGet;
 import io.proleap.vb6.asg.metamodel.statement.property.let.PropertyLet;
 import io.proleap.vb6.asg.metamodel.statement.property.set.PropertySet;
@@ -193,6 +272,8 @@ import io.proleap.vb6.asg.metamodel.statement.redim.ReDim;
 import io.proleap.vb6.asg.metamodel.statement.redim.impl.ReDimImpl;
 import io.proleap.vb6.asg.metamodel.statement.resume.Resume;
 import io.proleap.vb6.asg.metamodel.statement.resume.impl.ResumeImpl;
+import io.proleap.vb6.asg.metamodel.statement.savesetting.SaveSetting;
+import io.proleap.vb6.asg.metamodel.statement.savesetting.impl.SaveSettingImpl;
 import io.proleap.vb6.asg.metamodel.statement.select.Select;
 import io.proleap.vb6.asg.metamodel.statement.select.SelectCase;
 import io.proleap.vb6.asg.metamodel.statement.select.SelectCaseCond;
@@ -210,6 +291,8 @@ import io.proleap.vb6.asg.metamodel.statement.whilestmt.While;
 import io.proleap.vb6.asg.metamodel.statement.whilestmt.impl.WhileImpl;
 import io.proleap.vb6.asg.metamodel.statement.with.With;
 import io.proleap.vb6.asg.metamodel.statement.with.impl.WithImpl;
+import io.proleap.vb6.asg.metamodel.statement.write.Write;
+import io.proleap.vb6.asg.metamodel.statement.write.impl.WriteImpl;
 import io.proleap.vb6.asg.metamodel.type.ComplexType;
 import io.proleap.vb6.asg.metamodel.type.Type;
 import io.proleap.vb6.asg.metamodel.valuestmt.ArgValueAssignment;
@@ -229,12 +312,14 @@ import io.proleap.vb6.asg.metamodel.valuestmt.impl.NewValueStmtImpl;
 import io.proleap.vb6.asg.metamodel.valuestmt.impl.NotValueStmtImpl;
 import io.proleap.vb6.asg.metamodel.valuestmt.impl.StringValueStmtImpl;
 import io.proleap.vb6.asg.metamodel.valuestmt.impl.StructValueStmtImpl;
-import io.proleap.vb6.asg.metamodel.valuestmt.impl.SubCallImpl;
 import io.proleap.vb6.asg.metamodel.valuestmt.impl.ValueAssignmentImpl;
+import io.proleap.vb6.asg.resolver.impl.NameResolverImpl;
+import io.proleap.vb6.asg.resolver.impl.TypeResolverImpl;
+import io.proleap.vb6.asg.util.ANTLRUtils;
 
 public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
-	private final static Logger LOG = LogManager.getLogger(ScopeImpl.class);
+	private final static Logger LOG = LoggerFactory.getLogger(ScopeImpl.class);
 
 	public final static String ME = "ME";
 
@@ -248,8 +333,21 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	protected Map<String, Variable> variables = new HashMap<String, Variable>();
 
-	public ScopeImpl(final Module module, final Scope scope, final ParseTree ctx) {
-		super(module, scope, ctx);
+	public ScopeImpl(final Program program, final Module module, final Scope scope, final ParserRuleContext ctx) {
+		super(program, module, scope, ctx);
+	}
+
+	@Override
+	public AppActivate addAppActivate(final AppActivateStmtContext ctx) {
+		AppActivate result = (AppActivate) getASGElement(ctx);
+
+		if (result == null) {
+			result = new AppActivateImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
 	}
 
 	@Override
@@ -265,93 +363,65 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerScopedElement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
 
 		return result;
 	}
 
 	@Override
-	public Call addCall(final CallContext callContext, final ImplicitCallStmt_InStmtContext ctx) {
-		Call result = (Call) getASGElement(ctx);
+	public Beep addBeep(final BeepStmtContext ctx) {
+		Beep result = (Beep) getASGElement(ctx);
 
 		if (result == null) {
-			/*
-			 * then the delegated call
-			 */
-			final Call delegatedCall;
+			result = new BeepImpl(module, this, ctx);
 
-			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
-				delegatedCall = addCall(null, callContext, ctx.iCS_S_VariableOrProcedureCall());
-			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
-				delegatedCall = addCall(null, ctx.iCS_S_ProcedureOrArrayCall());
-			} else if (ctx.iCS_S_MembersCall() != null) {
-				delegatedCall = addCall(callContext, ctx.iCS_S_MembersCall());
-			} else if (ctx.iCS_S_DictionaryCall() != null) {
-				delegatedCall = addCall(ctx.iCS_S_DictionaryCall());
-			} else {
-				LOG.warn("unknown implicit call {}.", ctx);
-				delegatedCall = null;
-			}
-
-			result = new CallDelegateImpl(delegatedCall, module, this, ctx);
-
-			registerASGElement(result);
+			registerStatement(result);
 		}
 
 		return result;
 	}
 
 	@Override
-	public Call addCall(final CallContext callContext, final VisualBasic6Parser.ICS_S_MembersCallContext ctx) {
-		MembersCall result = (MembersCall) getASGElement(ctx);
+	public BlockIfThenElse addBlockIfThenElse(final BlockIfThenElseContext ctx) {
+		BlockIfThenElse result = (BlockIfThenElse) getASGElement(ctx);
 
 		if (result == null) {
-			result = new MembersCallImpl(module, this, ctx);
+			result = new BlockIfThenElseImpl(module, this, ctx);
 
-			ComplexType instanceType = null;
-
-			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
-				final Call instanceCall = addCall(null, callContext, ctx.iCS_S_VariableOrProcedureCall());
-				instanceType = castComplexType(instanceCall.getType());
-
-				result.addSubCall(instanceCall);
-			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
-				final Call instanceCall = addCall(null, ctx.iCS_S_ProcedureOrArrayCall());
-				instanceType = castComplexType(instanceCall.getType());
-
-				result.addSubCall(instanceCall);
+			if (ctx.ifBlockStmt() != null) {
+				final IfBlock ifBlock = addIfBlock(ctx.ifBlockStmt());
+				result.setIfBlock(ifBlock);
 			}
 
-			if (ctx.iCS_S_MemberCall() != null) {
-				for (final ICS_S_MemberCallContext memberCallContext : ctx.iCS_S_MemberCall()) {
-					final Call call = addCall(instanceType, callContext, memberCallContext);
-					instanceType = castComplexType(call.getType());
-
-					result.addSubCall(call);
-				}
+			for (final IfElseIfBlockStmtContext ifElseIfBlockStmtContext : ctx.ifElseIfBlockStmt()) {
+				final ElseIfBlock elseIfBlock = addElseIfBlock(ifElseIfBlockStmtContext);
+				result.addElseIfBlock(elseIfBlock);
 			}
 
-			registerASGElement(result);
+			if (ctx.ifElseBlockStmt() != null) {
+				final ElseBlock elseBlock = addElseBlock(ctx.ifElseBlockStmt());
+				result.setElseBlock(elseBlock);
+			}
+
+			registerStatement(result);
 		}
 
 		return result;
 	}
 
 	@Override
-	public Call addCall(final ComplexType instanceType, final CallContext callContext,
-			final ICS_S_MemberCallContext ctx) {
+	public Call addCall(final Call instanceCall, final ComplexType instanceType, final CallContext callContext,
+			final boolean isIntermediateMemberCall, final ICS_S_MemberCallContext ctx) {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
-			/*
-			 * then the delegated call
-			 */
 			final Call delegatedCall;
 
 			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
-				delegatedCall = addCall(instanceType, callContext, ctx.iCS_S_VariableOrProcedureCall());
+				delegatedCall = addCall(instanceCall, instanceType, callContext, isIntermediateMemberCall,
+						ctx.iCS_S_VariableOrProcedureCall());
 			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
-				delegatedCall = addCall(instanceType, ctx.iCS_S_ProcedureOrArrayCall());
+				delegatedCall = addCall(instanceCall, instanceType, ctx.iCS_S_ProcedureOrArrayCall());
 			} else {
 				delegatedCall = null;
 			}
@@ -365,17 +435,16 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
-	public Call addCall(final ComplexType instanceType, final CallContext callContext,
-			final ICS_S_VariableOrProcedureCallContext ctx) {
+	public Call addCall(final Call instanceCall, final ComplexType instanceType, final CallContext callContext,
+			final boolean isIntermediateMemberCall, final ICS_S_VariableOrProcedureCallContext ctx) {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
 			final String name = determineName(ctx);
 
 			/*
-			 * instead of regular variables, standard modules can be called for
-			 * calling further members on them -> check for calls on standard
-			 * modules
+			 * instead of regular variables, standard modules can be called for calling
+			 * further members on them -> check for calls on standard modules
 			 */
 			final StandardModule calledModule = module.getProgram().getStandardModule(name);
 
@@ -385,10 +454,9 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				result = new MeCallImpl(name, module, this, ctx);
 			} else {
 				/*
-				 * determine referenced element, i. e. array variable or
-				 * function
+				 * determine referenced element, i. e. array variable or function
 				 */
-				final List<ModelElement> referencedProgramElements = getElements(instanceType, name);
+				final List<ModelElement> referencedProgramElements = getElements(instanceCall, instanceType, name);
 
 				final Arg arg = castArg(referencedProgramElements);
 				final ApiProcedure apiProcedure = castApiProcedure(referencedProgramElements);
@@ -397,6 +465,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				final ApiEnumerationConstant apiEnumerationConstant = castApiEnumerationConstant(
 						referencedProgramElements);
 				final Constant constant = castConst(referencedProgramElements);
+				final ElementVariable elementVariable = castElementVariable(referencedProgramElements);
 				final Enumeration enumeration = castEnumeration(referencedProgramElements);
 				final EnumerationConstant enumerationConstant = castEnumerationConstant(referencedProgramElements);
 				final Function function = castFunction(referencedProgramElements);
@@ -404,231 +473,163 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				final PropertyLet propertyLet = castPropertyLet(referencedProgramElements);
 				final PropertySet propertySet = castPropertySet(referencedProgramElements);
 				final Sub sub = castSub(referencedProgramElements);
+				final TypeElement typeElement = castTypeElement(referencedProgramElements);
 				final Variable variable = castVariable(referencedProgramElements);
 
 				/*
-				 * potentially, this let sets a return variable of a function or
-				 * property get
+				 * potentially, this let sets a return variable of a function or property get
 				 */
-				final Procedure procedure = this.findScope(Procedure.class);
-				final boolean hasProcedureName;
+				final Function scopeFunction = this.findScope(Function.class);
+				final boolean hasScopeFunctionName = scopeFunction == null ? false
+						: scopeFunction.getName().equals(name);
 
-				if (procedure != null) {
-					hasProcedureName = procedure.getName().equals(name);
+				final PropertyGet scopePropertyGet = this.findScope(PropertyGet.class);
+				final boolean hasScopePropertyGetName = scopePropertyGet == null ? false
+						: scopePropertyGet.getName().equals(name);
+
+				final boolean isLeftHandSideCall = CallContext.LET_LEFT_HAND_SIDE.equals(callContext);
+
+				if (instanceType == null && hasScopeFunctionName) {
+					final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, scopeFunction, module, this,
+							ctx);
+
+					result = returnValueCall;
+				} else if (instanceType == null && hasScopePropertyGetName) {
+					final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, scopePropertyGet, module,
+							this, ctx);
+
+					result = returnValueCall;
+				} else if (elementVariable != null) {
+					final ElementVariableCall elementVariableCall = new ElementVariableCallImpl(name, elementVariable,
+							module, this, ctx);
+
+					linkElementVariableCallWithElementVariable(elementVariableCall, elementVariable);
+
+					result = elementVariableCall;
+				} else if (variable != null && getModule().equals(variable.getModule())) {
+					final VariableCall variableCall = new VariableCallImpl(name, variable, module, this, ctx);
+
+					linkVariableCallWithVariable(variableCall, variable);
+
+					result = variableCall;
+				} else if (constant != null && getModule().equals(constant.getModule())) {
+					final ConstantCall constantCall = new ConstantCallImpl(name, constant, module, this, ctx);
+
+					linkConstantCallWithConstant(constantCall, constant);
+
+					result = constantCall;
+				} else if (arg != null) {
+					// sic!, precedence is after constants and variables: arg
+					// values can be overwritten by constant and variables
+					final ArgCall argCall = new ArgCallImpl(name, arg, module, this, ctx);
+
+					linkArgCallWithArg(argCall, arg);
+
+					result = argCall;
+				} else if (enumerationConstant != null) {
+					final EnumerationConstantCall enumerationConstantCall = new EnumerationConstantCallImpl(name,
+							enumerationConstant, module, this, ctx);
+
+					linkEnumerationConstantCallWithEnumerationConstant(enumerationConstantCall, enumerationConstant);
+
+					final boolean isStandalone = instanceType == null;
+					enumerationConstantCall.setStandaloneCall(isStandalone);
+
+					result = enumerationConstantCall;
+				} else if (variable != null) {
+					final VariableCall variableCall = new VariableCallImpl(name, variable, module, this, ctx);
+
+					linkVariableCallWithVariable(variableCall, variable);
+
+					result = variableCall;
+				} else if (constant != null) {
+					final ConstantCall constantCall = new ConstantCallImpl(name, constant, module, this, ctx);
+
+					linkConstantCallWithConstant(constantCall, constant);
+
+					result = constantCall;
+				} else if (propertyGet != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
+					final PropertyGetCall propertyGetCall = new PropertyGetCallImpl(name, propertyGet, module, this,
+							ctx);
+
+					linkPropertyGetCallWithPropertyGet(propertyGetCall, propertyGet, (ArgsCallContext) null);
+
+					result = propertyGetCall;
+				} else if (propertyLet != null && isLeftHandSideCall && !isIntermediateMemberCall) {
+					final PropertyLetCall properyLetCall = new PropertyLetCallImpl(name, propertyLet, module, this,
+							ctx);
+
+					linkPropertyLetCallWithPropertySet(properyLetCall, propertyLet, null);
+
+					result = properyLetCall;
+				} else if (propertySet != null && isLeftHandSideCall && !isIntermediateMemberCall) {
+					final PropertySetCall propertySetCall = new PropertySetCallImpl(name, propertySet, module, this,
+							ctx);
+
+					linkPropertySetCallWithPropertySet(propertySetCall, propertySet, null);
+
+					result = propertySetCall;
+				} else if (typeElement != null) {
+					final TypeElementCall typeElementCall = new TypeElementCallImpl(name, typeElement, module, this,
+							ctx);
+
+					linkTypeElementCallWithTypeElement(typeElementCall, typeElement);
+
+					result = typeElementCall;
+				} else if (function != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
+					final FunctionCall functionCall = new FunctionCallImpl(name, function, module, this, ctx);
+
+					linkFunctionCallWithFunction(functionCall, function, (ArgsCallContext) null);
+
+					result = functionCall;
+				} else if (sub != null && (!isLeftHandSideCall || isIntermediateMemberCall)) {
+					final SubCall subCall = new SubCallImpl(name, sub, module, this, ctx);
+
+					linkSubCallWithSub(subCall, sub, null);
+
+					result = subCall;
+				} else if (enumeration != null) {
+					final EnumerationCall enumerationCall = new EnumerationCallImpl(name, enumeration, module, this,
+							ctx);
+
+					linkEnumerationCallWithEnumeration(enumerationCall, enumeration);
+
+					result = enumerationCall;
+				} else if (apiProcedure != null) {
+					final ApiProcedureCall apiProcedureCall = new ApiProcedureCallImpl(name, apiProcedure, module, this,
+							ctx);
+
+					linkApiProcedureCallWithApiProcedure(apiProcedureCall, apiProcedure);
+
+					result = apiProcedureCall;
+				} else if (apiProperty != null) {
+					final ApiPropertyCall apiPropertyCall = new ApiPropertyCallImpl(name, apiProperty, module, this,
+							ctx);
+
+					linkApiPropertyCallWithApiProperty(apiPropertyCall, apiProperty);
+
+					result = apiPropertyCall;
+				} else if (apiEnumeration != null) {
+					final ApiEnumerationCall apiEnumerationCall = new ApiEnumerationCallImpl(name, apiEnumeration,
+							module, this, ctx);
+
+					linkApiEnumerationCallWithApiEnumeration(apiEnumerationCall, apiEnumeration);
+
+					result = apiEnumerationCall;
+				} else if (apiEnumerationConstant != null) {
+					final ApiEnumerationConstantCall apiEnumerationConstantCall = new ApiEnumerationConstantCallImpl(
+							name, apiEnumerationConstant, module, this, ctx);
+
+					linkApiEnumerationConstantCallWithApiEnumerationConstant(apiEnumerationConstantCall,
+							apiEnumerationConstant);
+
+					final boolean isStandalone = instanceType == null;
+					apiEnumerationConstantCall.setStandaloneCall(isStandalone);
+
+					result = apiEnumerationConstantCall;
 				} else {
-					hasProcedureName = false;
-				}
-
-				/*
-				 * create call model element
-				 */
-				if (CallContext.LET_LEFT_HAND_SIDE.equals(callContext)) {
-					if (instanceType == null && hasProcedureName) {
-						if (propertyGet != null) {
-							final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, propertyGet, module,
-									this, ctx);
-
-							result = returnValueCall;
-						} else {
-							final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, function, module,
-									this, ctx);
-
-							result = returnValueCall;
-						}
-					} else if (variable != null) {
-						final VariableCall variableCall = new VariableCallImpl(name, variable, module, this, ctx);
-
-						linkVariableCallWithVariable(variableCall, variable);
-
-						result = variableCall;
-					}
-					// arg values can be overwritten
-					else if (arg != null) {
-						final ArgCall argCall = new ArgCallImpl(name, arg, module, this, ctx);
-
-						linkArgCallWithArg(argCall, arg);
-
-						result = argCall;
-					} else if (propertyLet != null) {
-						final PropertyLetCall properyLetCall = new PropertyLetCallImpl(name, propertyLet, module, this,
-								ctx);
-
-						linkPropertyLetCallWithPropertySet(properyLetCall, propertyLet, null);
-
-						result = properyLetCall;
-					} else if (propertySet != null) {
-						final PropertySetCall propertySetCall = new PropertySetCallImpl(name, propertySet, module, this,
-								ctx);
-
-						linkPropertySetCallWithPropertySet(propertySetCall, propertySet, null);
-
-						result = propertySetCall;
-					} else if (constant != null) {
-						final ConstantCall constantCall = new ConstantCallImpl(name, constant, module, this, ctx);
-
-						linkConstantCallWithConstant(constantCall, constant);
-
-						result = constantCall;
-					} else if (enumeration != null) {
-						final EnumerationCall enumerationCall = new EnumerationCallImpl(name, enumeration, module, this,
-								ctx);
-
-						linkEnumerationCallWithEnumeration(enumerationCall, enumeration);
-
-						result = enumerationCall;
-					} else if (enumerationConstant != null) {
-						final EnumerationConstantCall enumerationConstantCall = new EnumerationConstantCallImpl(name,
-								enumerationConstant, module, this, ctx);
-
-						linkEnumerationConstantCallWithEnumerationConstant(enumerationConstantCall,
-								enumerationConstant);
-
-						final boolean isStandalone = instanceType == null;
-						enumerationConstantCall.setStandaloneCall(isStandalone);
-
-						result = enumerationConstantCall;
-					} else if (apiProcedure != null) {
-						final ApiProcedureCall apiProcedureCall = new ApiProcedureCallImpl(name, apiProcedure, module,
-								this, ctx);
-
-						linkApiProcedureCallWithApiProcedure(apiProcedureCall, apiProcedure);
-
-						result = apiProcedureCall;
-					} else if (apiProperty != null) {
-						final ApiPropertyCall apiPropertyCall = new ApiPropertyCallImpl(name, apiProperty, module, this,
-								ctx);
-
-						linkApiPropertyCallWithApiProperty(apiPropertyCall, apiProperty);
-
-						result = apiPropertyCall;
-					} else if (apiEnumeration != null) {
-						final ApiEnumerationCall apiEnumerationCall = new ApiEnumerationCallImpl(name, apiEnumeration,
-								module, this, ctx);
-
-						linkApiEnumerationCallWithApiEnumeration(apiEnumerationCall, apiEnumeration);
-
-						result = apiEnumerationCall;
-					} else if (apiEnumerationConstant != null) {
-						final ApiEnumerationConstantCall apiEnumerationConstantCall = new ApiEnumerationConstantCallImpl(
-								name, apiEnumerationConstant, module, this, ctx);
-
-						linkApiEnumerationConstantCallWithApiEnumerationConstant(apiEnumerationConstantCall,
-								apiEnumerationConstant);
-
-						final boolean isStandalone = instanceType == null;
-						apiEnumerationConstantCall.setStandaloneCall(isStandalone);
-
-						result = apiEnumerationConstantCall;
-					} else {
-						LOG.warn("left hand call to unknown element {}", name);
-						result = new UndefinedCallImpl(name, null, module, this, ctx);
-					}
-				} else {
-					// return values can be read inside of functions or property
-					// gets
-					if (instanceType == null && hasProcedureName) {
-						if (propertyGet != null) {
-							final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, propertyGet, module,
-									this, ctx);
-
-							result = returnValueCall;
-						} else {
-							final ReturnValueCall returnValueCall = new ReturnValueCallImpl(name, function, module,
-									this, ctx);
-
-							result = returnValueCall;
-						}
-					} else if (variable != null) {
-						final VariableCall variableCall = new VariableCallImpl(name, variable, module, this, ctx);
-
-						linkVariableCallWithVariable(variableCall, variable);
-
-						result = variableCall;
-					} else if (arg != null) {
-						final ArgCall argCall = new ArgCallImpl(name, arg, module, this, ctx);
-
-						linkArgCallWithArg(argCall, arg);
-
-						result = argCall;
-					} else if (constant != null) {
-						final ConstantCall constantCall = new ConstantCallImpl(name, constant, module, this, ctx);
-
-						linkConstantCallWithConstant(constantCall, constant);
-
-						result = constantCall;
-					} else if (propertyGet != null) {
-						final PropertyGetCall propertyGetCall = new PropertyGetCallImpl(name, propertyGet, module, this,
-								ctx);
-
-						linkPropertyGetCallWithPropertyGet(propertyGetCall, propertyGet, null);
-
-						result = propertyGetCall;
-					} else if (function != null) {
-						final FunctionCall functionCall = new FunctionCallImpl(name, function, module, this, ctx);
-
-						linkFunctionCallWithFunction(functionCall, function, null);
-
-						result = functionCall;
-					} else if (sub != null) {
-						final SubCall subCall = new SubCallImpl(name, sub, module, this, ctx);
-
-						linkSubCallWithSub(subCall, sub, null);
-
-						result = subCall;
-					} else if (enumeration != null) {
-						final EnumerationCall enumerationCall = new EnumerationCallImpl(name, enumeration, module, this,
-								ctx);
-
-						linkEnumerationCallWithEnumeration(enumerationCall, enumeration);
-
-						result = enumerationCall;
-					} else if (enumerationConstant != null) {
-						final EnumerationConstantCall enumerationConstantCall = new EnumerationConstantCallImpl(name,
-								enumerationConstant, module, this, ctx);
-
-						linkEnumerationConstantCallWithEnumerationConstant(enumerationConstantCall,
-								enumerationConstant);
-
-						final boolean isStandalone = instanceType == null;
-						enumerationConstantCall.setStandaloneCall(isStandalone);
-
-						result = enumerationConstantCall;
-					} else if (apiProcedure != null) {
-						final ApiProcedureCall apiProcedureCall = new ApiProcedureCallImpl(name, apiProcedure, module,
-								this, ctx);
-
-						linkApiProcedureCallWithApiProcedure(apiProcedureCall, apiProcedure);
-
-						result = apiProcedureCall;
-					} else if (apiProperty != null) {
-						final ApiPropertyCall apiPropertyCall = new ApiPropertyCallImpl(name, apiProperty, module, this,
-								ctx);
-
-						linkApiPropertyCallWithApiProperty(apiPropertyCall, apiProperty);
-
-						result = apiPropertyCall;
-					} else if (apiEnumeration != null) {
-						final ApiEnumerationCall apiEnumerationCall = new ApiEnumerationCallImpl(name, apiEnumeration,
-								module, this, ctx);
-
-						linkApiEnumerationCallWithApiEnumeration(apiEnumerationCall, apiEnumeration);
-
-						result = apiEnumerationCall;
-					} else if (apiEnumerationConstant != null) {
-						final ApiEnumerationConstantCall apiEnumerationConstantCall = new ApiEnumerationConstantCallImpl(
-								name, apiEnumerationConstant, module, this, ctx);
-
-						linkApiEnumerationConstantCallWithApiEnumerationConstant(apiEnumerationConstantCall,
-								apiEnumerationConstant);
-
-						final boolean isStandalone = instanceType == null;
-						apiEnumerationConstantCall.setStandaloneCall(isStandalone);
-
-						result = apiEnumerationConstantCall;
-					} else {
-						LOG.warn("call to unknown element {}", name);
-						result = new UndefinedCallImpl(name, null, module, this, ctx);
-					}
+					LOG.debug("Call to unknown element {}.", name);
+					result = new UndefinedCallImpl(name, null, module, this, ctx);
 				}
 			}
 
@@ -639,7 +640,8 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
-	public Call addCall(final ComplexType instanceType, final ICS_S_ProcedureOrArrayCallContext ctx) {
+	public Call addCall(final Call instanceCall, final ComplexType instanceType,
+			final ICS_S_ProcedureOrArrayCallContext ctx) {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
@@ -648,7 +650,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			/*
 			 * determine referenced element, i. e. array variable or function
 			 */
-			final List<ModelElement> referencedProgramElements = getElements(instanceType, name);
+			final List<ModelElement> referencedProgramElements = getElements(instanceCall, instanceType, name);
 
 			final ApiProcedure apiProcedure = castApiProcedure(referencedProgramElements);
 			final ApiProperty apiProperty = castApiProperty(referencedProgramElements);
@@ -671,8 +673,10 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			 * create call model element
 			 */
 			if (isCollection) {
-				final ArrayElementCall arrayElementCall = new ArrayElementCallImpl(name, module, this, ctx);
-				arrayElementCall.setVariable(variable);
+				final ArrayElementCall arrayElementCall = new ArrayElementCallImpl(name, variable, module, this, ctx);
+
+				linkArrayElementCallWithVariable(arrayElementCall, variable);
+
 				result = arrayElementCall;
 			} else {
 				if (function != null) {
@@ -702,10 +706,98 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 					linkApiPropertyCallWithApiProperty(apiPropertyCall, apiProperty);
 
 					result = apiPropertyCall;
+				} else if (arg != null) {
+					final ArgCall argCall = new ArgCallImpl(name, arg, module, this, ctx);
+
+					linkArgCallWithArg(argCall, arg);
+
+					result = argCall;
 				} else {
-					LOG.warn("call to unknown element {}", name);
+					LOG.debug("Call to unknown element {}.", name);
 					result = new UndefinedCallImpl(name, null, module, this, ctx);
 				}
+			}
+
+			registerASGElement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Call addCall(final CallContext callContext, final ImplicitCallStmt_InStmtContext ctx) {
+		Call result = (Call) getASGElement(ctx);
+
+		if (result == null) {
+			final Call delegatedCall;
+
+			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
+				delegatedCall = addCall(null, null, callContext, false, ctx.iCS_S_VariableOrProcedureCall());
+			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
+				delegatedCall = addCall(null, null, ctx.iCS_S_ProcedureOrArrayCall());
+			} else if (ctx.iCS_S_MembersCall() != null) {
+				delegatedCall = addCall(callContext, ctx.iCS_S_MembersCall());
+			} else if (ctx.iCS_S_DictionaryCall() != null) {
+				delegatedCall = addCall(ctx.iCS_S_DictionaryCall());
+			} else {
+				LOG.warn("Unknown implicit call {}.", ctx);
+				delegatedCall = null;
+			}
+
+			result = new CallDelegateImpl(delegatedCall, module, this, ctx);
+
+			registerASGElement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Call addCall(final CallContext callContext, final VisualBasic6Parser.ICS_S_MembersCallContext ctx) {
+		MembersCall result = (MembersCall) getASGElement(ctx);
+
+		if (result == null) {
+			result = new MembersCallImpl(module, this, ctx);
+
+			Call instanceCall = null;
+			ComplexType instanceType = null;
+
+			if (ctx.iCS_S_VariableOrProcedureCall() != null) {
+				instanceCall = addCall(null, null, callContext, true, ctx.iCS_S_VariableOrProcedureCall());
+				instanceType = castComplexType(instanceCall.getType());
+
+				result.addSubCall(instanceCall);
+			} else if (ctx.iCS_S_ProcedureOrArrayCall() != null) {
+				instanceCall = addCall(null, null, ctx.iCS_S_ProcedureOrArrayCall());
+				instanceType = castComplexType(instanceCall.getType());
+
+				result.addSubCall(instanceCall);
+			} else if (this instanceof With) {
+				final With with = (With) this;
+				instanceCall = with.getWithVariableCall();
+				instanceType = castComplexType(instanceCall.getType());
+			} else {
+				final With with = (With) ANTLRUtils.findParent(With.class, ctx, program.getASGElementRegistry());
+
+				if (with != null) {
+					instanceCall = with.getWithVariableCall();
+					instanceType = castComplexType(instanceCall.getType());
+				}
+			}
+
+			final int numberOfMemberCalls = ctx.iCS_S_MemberCall().size();
+			int currentMemberCall = 0;
+
+			for (final ICS_S_MemberCallContext memberCallContext : ctx.iCS_S_MemberCall()) {
+				final boolean isIntermediateMemberCall = currentMemberCall < numberOfMemberCalls - 1;
+
+				instanceCall = addCall(instanceCall, instanceType, callContext, isIntermediateMemberCall,
+						memberCallContext);
+				instanceType = castComplexType(instanceCall.getType());
+
+				result.addSubCall(instanceCall);
+
+				currentMemberCall++;
 			}
 
 			registerASGElement(result);
@@ -719,10 +811,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		Call result = (Call) getASGElement(ctx);
 
 		if (result == null) {
-
 			final String name = determineName(ctx);
-			final Type type = determineType(ctx);
-
 			result = new DictionaryCallImpl(name, module, this, ctx);
 
 			registerASGElement(result);
@@ -738,14 +827,27 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			final String name = determineName(ctx);
 
+			Call instanceCall = null;
 			ComplexType instanceType = null;
 
 			if (ctx.implicitCallStmt_InStmt() != null) {
-				final Call instanceCall = addCall(null, ctx.implicitCallStmt_InStmt());
+				instanceCall = addCall(null, ctx.implicitCallStmt_InStmt());
 				instanceType = castComplexType(instanceCall.getType());
+			} else if (this instanceof With) {
+				final With with = (With) this;
+				instanceCall = with.getWithVariableCall();
+				instanceType = castComplexType(instanceCall.getType());
+			} else {
+				final With with = (With) ANTLRUtils.findParent(With.class, ctx, program.getASGElementRegistry());
+
+				if (with != null) {
+					instanceCall = with.getWithVariableCall();
+					instanceType = castComplexType(instanceCall.getType());
+				}
 			}
 
 			final Module instanceModule = castModule(instanceType);
+
 			final Sub sub;
 			final Function function;
 			final ApiProcedure apiProcedure;
@@ -755,7 +857,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				function = instanceModule.getFunction(name);
 				apiProcedure = null;
 			} else {
-				final List<ModelElement> referencedProgramElements = getElements(null, name);
+				final List<ModelElement> referencedProgramElements = getElements(instanceCall, instanceType, name);
 
 				sub = castSub(referencedProgramElements);
 				function = castFunction(referencedProgramElements);
@@ -798,7 +900,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			final String name = determineName(ctx);
 
-			final List<ModelElement> referencedProgramElements = getElements(null, name);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, name);
 
 			final Sub sub = castSub(referencedProgramElements);
 			final Function function = castFunction(referencedProgramElements);
@@ -835,7 +937,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	@Override
 	public Call addCall(final ExplicitCallStmtContext ctx) {
-		Call result = (Call) getASGElement(ctx);
+		ExplicitCallStmt result = (ExplicitCallStmt) getASGElement(ctx);
 
 		if (result == null) {
 			final Call delegatedCall;
@@ -848,9 +950,9 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				delegatedCall = null;
 			}
 
-			result = new CallDelegateImpl(delegatedCall, module, this, ctx);
+			result = new ExplicitCallStmtImpl(delegatedCall, module, this, ctx);
 
-			registerASGElement(result);
+			registerStatement(result);
 		}
 
 		return result;
@@ -863,14 +965,27 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			final String name = determineName(ctx);
 
+			Call instanceCall = null;
 			ComplexType instanceType = null;
 
 			if (ctx.implicitCallStmt_InStmt() != null) {
-				final Call instanceCall = addCall(null, ctx.implicitCallStmt_InStmt());
+				instanceCall = addCall(null, ctx.implicitCallStmt_InStmt());
 				instanceType = castComplexType(instanceCall.getType());
+			} else if (this instanceof With) {
+				final With with = (With) this;
+				instanceCall = with.getWithVariableCall();
+				instanceType = castComplexType(instanceCall.getType());
+			} else {
+				final With with = (With) ANTLRUtils.findParent(With.class, ctx, program.getASGElementRegistry());
+
+				if (with != null) {
+					instanceCall = with.getWithVariableCall();
+					instanceType = castComplexType(instanceCall.getType());
+				}
 			}
 
 			final Module instanceModule = castModule(instanceType);
+
 			final Sub sub;
 			final Function function;
 			final ApiProcedure apiProcedure;
@@ -880,7 +995,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 				function = instanceModule.getFunction(name);
 				apiProcedure = null;
 			} else {
-				final List<ModelElement> referencedProgramElements = getElements(null, name);
+				final List<ModelElement> referencedProgramElements = getElements(instanceCall, instanceType, name);
 
 				sub = castSub(referencedProgramElements);
 				function = castFunction(referencedProgramElements);
@@ -923,7 +1038,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			final String name = determineName(ctx);
 
-			final List<ModelElement> referencedProgramElements = getElements(null, name);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, name);
 
 			final Sub sub = castSub(referencedProgramElements);
 			final Function function = castFunction(referencedProgramElements);
@@ -964,7 +1079,6 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 		if (result == null) {
 			final Call delegatedCall = addCall(ctx.dictionaryCallStmt());
-
 			result = new CallDelegateImpl(delegatedCall, module, this, ctx);
 
 			registerASGElement(result);
@@ -975,7 +1089,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	@Override
 	public Call addCall(final ImplicitCallStmt_InBlockContext ctx) {
-		Call result = (Call) getASGElement(ctx);
+		CallStmt result = (CallStmt) getASGElement(ctx);
 
 		if (result == null) {
 			final Call delegatedCall;
@@ -985,11 +1099,160 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			} else if (ctx.iCS_B_MemberProcedureCall() != null) {
 				delegatedCall = addCall(ctx.iCS_B_MemberProcedureCall());
 			} else {
-				LOG.warn("unknown implicit call {}.", ctx);
+				LOG.warn("Unknown implicit call {}.", ctx);
 				delegatedCall = null;
 			}
 
-			result = new CallDelegateImpl(delegatedCall, module, this, ctx);
+			result = new CallStmtImpl(delegatedCall, module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public ChDir addChDir(final ChDirStmtContext ctx) {
+		ChDir result = (ChDir) getASGElement(ctx);
+
+		if (result == null) {
+			result = new ChDirImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public ChDrive addChDrive(final ChDriveStmtContext ctx) {
+		ChDrive result = (ChDrive) getASGElement(ctx);
+
+		if (result == null) {
+			result = new ChDriveImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Close addClose(final CloseStmtContext ctx) {
+		Close result = (Close) getASGElement(ctx);
+
+		if (result == null) {
+			result = new CloseImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Constant addConstant(final VisibilityEnum visibility, final ConstSubStmtContext ctx) {
+		Constant result = (Constant) getASGElement(ctx);
+
+		if (result == null) {
+			final String name = determineName(ctx);
+			final Type type = determineType(ctx);
+
+			result = new ConstantImpl(name, visibility, type, module, this, ctx);
+
+			final ValueStmt valueStmt = addValueStmt(ctx.valueStmt());
+			result.setValueStmt(valueStmt);
+
+			registerStatement(result);
+			constants.put(getSymbol(name), result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public void addConstants(final ConstStmtContext ctx) {
+		final VisibilityEnum visibility = determineVisibility(ctx.publicPrivateGlobalVisibility());
+
+		for (final ConstSubStmtContext constSubStmtContext : ctx.constSubStmt()) {
+			addConstant(visibility, constSubStmtContext);
+		}
+	}
+
+	@Override
+	public Date addDate(final DateStmtContext ctx) {
+		Date result = (Date) getASGElement(ctx);
+
+		if (result == null) {
+			result = new DateImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Deftype addDeftype(final DeftypeStmtContext ctx) {
+		Deftype result = (Deftype) getASGElement(ctx);
+
+		if (result == null) {
+			result = new DeftypeImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public DeleteSetting addDeleteSetting(final DeleteSettingStmtContext ctx) {
+		DeleteSetting result = (DeleteSetting) getASGElement(ctx);
+
+		if (result == null) {
+			result = new DeleteSettingImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public DoLoop addDoLoop(final DoLoopStmtContext ctx) {
+		DoLoop result = (DoLoop) getASGElement(ctx);
+
+		if (result == null) {
+			result = new DoLoopImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public ElementVariable addElementVariable(final AmbiguousIdentifierContext ctx) {
+		ElementVariable result = (ElementVariable) getASGElement(ctx);
+
+		if (result == null) {
+			final String name = determineName(ctx);
+			final Type type = determineType(ctx);
+
+			result = new ElementVariableImpl(name, type, module, this, ctx);
+
+			registerScopedElement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public ElseBlock addElseBlock(final IfElseBlockStmtContext ctx) {
+		ElseBlock result = (ElseBlock) getASGElement(ctx);
+
+		if (result == null) {
+			result = new ElseBlockImpl(module, this, ctx);
 
 			registerASGElement(result);
 		}
@@ -998,20 +1261,33 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
-	public Constant addConstant(final ConstSubStmtContext ctx) {
-		Constant result = (Constant) getASGElement(ctx);
+	public ElseIfBlock addElseIfBlock(final IfElseIfBlockStmtContext ctx) {
+		ElseIfBlock result = (ElseIfBlock) getASGElement(ctx);
 
 		if (result == null) {
-			final String name = determineName(ctx);
-			final Type type = determineType(ctx);
+			result = new ElseIfBlockImpl(module, this, ctx);
 
-			result = new ConstantImpl(name, type, module, this, ctx);
+			registerASGElement(result);
+		}
 
-			final ValueStmt valueStmt = addValueStmt(ctx.valueStmt());
-			result.setValueStmt(valueStmt);
+		return result;
+	}
+
+	@Override
+	public Event addEvent(final EventStmtContext ctx) {
+		Event result = (Event) getASGElement(ctx);
+
+		if (result == null) {
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+			result = new EventImpl(visibility, module, this, ctx);
 
 			registerStatement(result);
-			constants.put(name, result);
+
+			if (ctx.argList() != null) {
+				for (final ArgContext argCtx : ctx.argList().arg()) {
+					result.addArg(argCtx);
+				}
+			}
 		}
 
 		return result;
@@ -1053,9 +1329,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			result = new ForEachImpl(module, this, ctx);
 
-			final String elementVariableName = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, elementVariableName);
-			final Variable elementVariable = castVariable(referencedProgramElements);
+			final ElementVariable elementVariable = addElementVariable(ctx.ambiguousIdentifier(0));
 			result.setElementVariable(elementVariable);
 
 			// in
@@ -1077,11 +1351,8 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			result = new ForNextImpl(module, this, ctx);
 
-			final String iteratorVariableName = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, iteratorVariableName);
-
-			final Variable iteratorVariable = castVariable(referencedProgramElements);
-			result.setIteratorVariable(iteratorVariable);
+			final Call counterCall = addCall(null, null, null, false, ctx.iCS_S_VariableOrProcedureCall());
+			result.setCounterCall(counterCall);
 
 			// from
 			if (!ctx.valueStmt().isEmpty()) {
@@ -1104,7 +1375,20 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerStatement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
+
+		return result;
+	}
+
+	@Override
+	public IfBlock addIfBlock(final IfBlockStmtContext ctx) {
+		IfBlock result = (IfBlock) getASGElement(ctx);
+
+		if (result == null) {
+			result = new IfBlockImpl(module, this, ctx);
+
+			registerASGElement(result);
+		}
 
 		return result;
 	}
@@ -1120,6 +1404,19 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			result.setValueStmt(valueStmt);
 
 			registerScopedElement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public InlineIfThenElse addInlineIfThenElse(final InlineIfThenElseContext ctx) {
+		InlineIfThenElse result = (InlineIfThenElse) getASGElement(ctx);
+
+		if (result == null) {
+			result = new InlineIfThenElseImpl(module, this, ctx);
+
+			registerStatement(result);
 		}
 
 		return result;
@@ -1149,7 +1446,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerStatement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
 
 		return result;
 	}
@@ -1189,7 +1486,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 		if (result == null) {
 			final String lineLabelName = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, lineLabelName);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, lineLabelName);
 
 			final LineLabel lineLabel = castLineLabel(referencedProgramElements);
 
@@ -1206,12 +1503,38 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
+	public Open addOpen(final OpenStmtContext ctx) {
+		Open result = (Open) getASGElement(ctx);
+
+		if (result == null) {
+			result = new OpenImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public Print addPrint(final PrintStmtContext ctx) {
+		Print result = (Print) getASGElement(ctx);
+
+		if (result == null) {
+			result = new PrintImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
 	public ReDim addReDim(final RedimSubStmtContext ctx) {
 		ReDim result = (ReDim) getASGElement(ctx);
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			final List<ModelElement> referencedProgramElements = getElements(null, name);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, name);
 			final Variable variable = castVariable(referencedProgramElements);
 
 			result = new ReDimImpl(variable, module, this, ctx);
@@ -1219,7 +1542,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerStatement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
 
 		return result;
 	}
@@ -1231,7 +1554,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (result == null) {
 			final String lineLabelName = determineName(ctx);
 
-			final List<ModelElement> referencedProgramElements = getElements(null, lineLabelName);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, lineLabelName);
 
 			final LineLabel lineLabel = castLineLabel(referencedProgramElements);
 
@@ -1240,6 +1563,19 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			if (lineLabel != null) {
 				lineLabel.addResume(result);
 			}
+
+			registerStatement(result);
+		}
+
+		return result;
+	}
+
+	@Override
+	public SaveSetting addSaveSetting(final SaveSettingStmtContext ctx) {
+		SaveSetting result = (SaveSetting) getASGElement(ctx);
+
+		if (result == null) {
+			result = new SaveSettingImpl(module, this, ctx);
 
 			registerStatement(result);
 		}
@@ -1394,7 +1730,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerStatement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
 
 		return result;
 	}
@@ -1567,7 +1903,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			/*
 			 * identify model element of assigned variable
 			 */
-			final List<ModelElement> referencedProgramElements = getElements(null, assignedVariableName);
+			final List<ModelElement> referencedProgramElements = getElements(null, null, assignedVariableName);
 
 			/*
 			 * identify typed model element of assigned variable
@@ -1589,8 +1925,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			final Call assignedVariableCall = addCall(null, ctx.implicitCallStmt_InStmt());
 
 			/*
-			 * associate value assignment model element with variable call model
-			 * element
+			 * associate value assignment model element with variable call model element
 			 */
 			result.setAssignedVariableCall(assignedVariableCall);
 
@@ -1601,7 +1936,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			registerASGElement(result);
 		}
 
-		VbParserContext.getInstance().getTypeAssignmentInference().addTypeAssignment(ctx);
+		new TypeAssignmentInferenceImpl().addTypeAssignment(ctx, module.getProgram());
 
 		return result;
 	}
@@ -1968,14 +2303,14 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	@Override
-	public Variable addVariable(final VariableSubStmtContext ctx) {
+	public Variable addVariable(final VisibilityEnum visibility, final VariableSubStmtContext ctx) {
 		Variable result = (Variable) getASGElement(ctx);
 
 		if (result == null) {
 			final String name = determineName(ctx);
 			final Type type = determineType(ctx);
 
-			result = new VariableImpl(name, type, module, this, ctx);
+			result = new VariableImpl(name, visibility, type, module, this, ctx);
 
 			final boolean isArray = ctx.LPAREN() != null && ctx.RPAREN() != null;
 			final boolean isStaticArray = isArray && ctx.subscripts() != null;
@@ -1984,10 +2319,23 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			result.setDeclaredAsStaticArray(isStaticArray);
 
 			registerScopedElement(result);
-			variables.put(name, result);
+			variables.put(getSymbol(name), result);
 		}
 
 		return result;
+	}
+
+	@Override
+	public void addVariables(final VariableStmtContext ctx) {
+		final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+		addVariables(visibility, ctx.variableListStmt());
+	}
+
+	@Override
+	public void addVariables(final VisibilityEnum visibility, final VariableListStmtContext ctx) {
+		for (final VariableSubStmtContext variableSubStmtContext : ctx.variableSubStmt()) {
+			addVariable(visibility, variableSubStmtContext);
+		}
 	}
 
 	@Override
@@ -2023,73 +2371,159 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		return result;
 	}
 
-	protected String determineName(final ParseTree ctx) {
-		return VbParserContext.getInstance().getNameResolver().determineName(ctx);
+	@Override
+	public Write addWrite(final WriteStmtContext ctx) {
+		Write result = (Write) getASGElement(ctx);
+
+		if (result == null) {
+			result = new WriteImpl(module, this, ctx);
+
+			registerStatement(result);
+		}
+
+		return result;
 	}
 
-	protected Type determineType(final ParseTree ctx) {
-		return VbParserContext.getInstance().getTypeResolver().determineType(ctx);
+	protected String determineName(final ParserRuleContext ctx) {
+		return new NameResolverImpl().determineName(ctx);
 	}
 
-	protected ASGElement getASGElement(final ParseTree ctx) {
-		final ASGElement result = VbParserContext.getInstance().getASGElementRegistry().getASGElement(ctx);
+	protected Type determineType(final ParserRuleContext ctx) {
+		final Program program = module.getProgram();
+		return new TypeResolverImpl().determineType(ctx, program);
+	}
+
+	protected VisibilityEnum determineVisibility(final PublicPrivateGlobalVisibilityContext visibility) {
+		final VisibilityEnum result;
+
+		if (visibility == null) {
+			result = null;
+		} else if (visibility.PRIVATE() != null) {
+			result = VisibilityEnum.PRIVATE;
+		} else if (visibility.GLOBAL() != null) {
+			result = VisibilityEnum.GLOBAL;
+		} else {
+			result = VisibilityEnum.PUBLIC;
+		}
+
+		return result;
+	}
+
+	protected VisibilityEnum determineVisibility(final PublicPrivateVisibilityContext visibility) {
+		final VisibilityEnum result;
+
+		if (visibility == null) {
+			result = null;
+		} else if (visibility.PRIVATE() != null) {
+			result = VisibilityEnum.PRIVATE;
+		} else {
+			result = VisibilityEnum.PUBLIC;
+		}
+
+		return result;
+	}
+
+	protected VisibilityEnum determineVisibility(final VisibilityContext visibility) {
+		final VisibilityEnum result;
+
+		if (visibility == null) {
+			result = null;
+		} else if (visibility.PRIVATE() != null) {
+			result = VisibilityEnum.PRIVATE;
+		} else if (visibility.FRIEND() != null) {
+			result = VisibilityEnum.FRIEND;
+		} else if (visibility.GLOBAL() != null) {
+			result = VisibilityEnum.GLOBAL;
+		} else {
+			result = VisibilityEnum.PUBLIC;
+		}
+
+		return result;
+	}
+
+	protected ASGElement getASGElement(final ParserRuleContext ctx) {
+		final Program program = module.getProgram();
+		final ASGElement result = program.getASGElementRegistry().getASGElement(ctx);
 		return result;
 	}
 
 	@Override
 	public Constant getConstant(final String name) {
-		return constants.get(name);
+		return constants.get(getSymbol(name));
+	}
+
+	@Override
+	public List<Constant> getConstants() {
+		return new ArrayList<>(constants.values());
 	}
 
 	/**
-	 * searches elements of the program by their name such as functions,
-	 * variables, api procedures etc.
+	 * searches elements of the program by their name such as functions, variables,
+	 * api procedures etc.
 	 */
-	protected List<ModelElement> getElements(final ComplexType instanceType, final String name) {
+	protected List<ModelElement> getElements(final Call instanceCall, final ComplexType instanceType,
+			final String name) {
 		final Module instanceModule = castModule(instanceType);
+		final Enumeration instanceEnumeration = castEnumeration(instanceType);
+		final io.proleap.vb6.asg.metamodel.Type instanceTypeStmtType = castTypeStmtType(instanceType);
 		final ApiModule instanceApiModule = castApiModule(instanceType);
 		final ApiEnumeration instanceApiEnumeration = castApiEnumeration(instanceType);
 
 		final List<ModelElement> referencedProgramElements = new ArrayList<ModelElement>();
 
 		if (name == null) {
-		}
-		// if a module instance is given
-		else if (instanceModule != null) {
-			final List<ScopedElement> instanceModuleScopedElements = instanceModule.getScopedElementsInScope(name);
+		} else if (instanceType != null) {
+			// if a module instance is given
+			if (instanceModule != null) {
+				final List<ScopedElement> instanceModuleScopedElements = instanceModule.getScopedElementsInScope(name);
 
-			if (instanceModuleScopedElements != null) {
-				referencedProgramElements.addAll(instanceModuleScopedElements);
+				if (instanceModuleScopedElements != null) {
+					referencedProgramElements.addAll(instanceModuleScopedElements);
+				}
 			}
-		}
-		// if an api module instance is given
-		else if (instanceApiModule != null) {
-			final ApiProcedure apiProcedure = instanceApiModule.getApiProcedure(name);
-			final ApiProperty apiProperty = instanceApiModule.getApiProperty(name);
+			// if a enumeration is given
+			else if (instanceEnumeration != null) {
+				final EnumerationConstant enumerationConstant = instanceEnumeration.getEnumerationConstant(name);
 
-			referencedProgramElements.add(apiProcedure);
-			referencedProgramElements.add(apiProperty);
-		}
-		// if an api enumeration instance is given
-		else if (instanceApiEnumeration != null) {
-			final ApiEnumerationConstant apiEnumerationConstant = instanceApiEnumeration
-					.getApiEnumerationConstant(name);
+				if (enumerationConstant != null) {
+					referencedProgramElements.add(enumerationConstant);
+				}
+			}
+			// if a type stmt type is given
+			else if (instanceTypeStmtType != null) {
+				final TypeElement instanceTypeElement = instanceTypeStmtType.getTypeElement(name);
 
-			referencedProgramElements.add(apiEnumerationConstant);
-		}
-		// if there is no instance given
-		else {
-			// search globally in the program for elements with that
-			// name
+				if (instanceTypeElement != null) {
+					referencedProgramElements.add(instanceTypeElement);
+				}
+			}
+			// if an api module instance is given
+			else if (instanceApiModule != null) {
+				final ApiProcedure apiProcedure = instanceApiModule.getApiProcedure(name);
+				final ApiProperty apiProperty = instanceApiModule.getApiProperty(name);
+
+				referencedProgramElements.add(apiProcedure);
+				referencedProgramElements.add(apiProperty);
+			}
+			// if an api enumeration instance is given
+			else if (instanceApiEnumeration != null) {
+				final ApiEnumerationConstant apiEnumerationConstant = instanceApiEnumeration
+						.getApiEnumerationConstant(name);
+
+				referencedProgramElements.add(apiEnumerationConstant);
+			} else {
+				LOG.warn("Could not resolve instance type {}.", instanceType);
+			}
+		} else if (instanceCall == null) {
+			// search globally in the program for elements with that name
 			final List<ScopedElement> globalProgramElements = getScopedElementsInHierarchy(name);
 
-			final ApiProcedure apiProcedure = VbParserContext.getInstance().getApiProcedureRegistry()
-					.getApiProcedure(name);
-
-			final ApiProperty apiProperty = VbParserContext.getInstance().getApiPropertyRegistry().getApiProperty(name);
-
-			final ApiEnumerationConstant apiEnumerationConstant = VbParserContext.getInstance()
-					.getApiEnumerationRegistry().getApiEnumerationConstant(name);
+			final ApiProcedure apiProcedure = module.getProgram().getApiProcedureRegistry().getApiProcedure(name);
+			final ApiProperty apiProperty = module.getProgram().getApiPropertyRegistry().getApiProperty(name);
+			final ApiEnumerationConstant apiEnumerationConstant = module.getProgram().getApiEnumerationRegistry()
+					.getApiEnumerationConstant(name);
+			final EnumerationConstant enumerationConstant = module.getProgram().getEnumerationRegistry()
+					.getEnumerationConstant(name);
 
 			if (globalProgramElements != null) {
 				referencedProgramElements.addAll(globalProgramElements);
@@ -2098,6 +2532,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			referencedProgramElements.add(apiProcedure);
 			referencedProgramElements.add(apiProperty);
 			referencedProgramElements.add(apiEnumerationConstant);
+			referencedProgramElements.add(enumerationConstant);
 		}
 
 		while (referencedProgramElements.contains(null)) {
@@ -2110,10 +2545,6 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	@Override
 	public Module getModule() {
 		return module;
-	}
-
-	private String getScopedElementKey(final String name) {
-		return name.toLowerCase();
 	}
 
 	@Override
@@ -2149,8 +2580,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		if (name == null) {
 			result = null;
 		} else {
-			final String scopedElementKey = getScopedElementKey(name);
-			final List<ScopedElement> scopedElementInScope = scopedElementsSymbolTable.get(scopedElementKey);
+			final List<ScopedElement> scopedElementInScope = scopedElementsSymbolTable.get(getSymbol(name));
 
 			result = scopedElementInScope;
 		}
@@ -2179,7 +2609,12 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 
 	@Override
 	public Variable getVariable(final String name) {
-		return variables.get(name);
+		return variables.get(getSymbol(name));
+	}
+
+	@Override
+	public List<Variable> getVariables() {
+		return new ArrayList<Variable>(variables.values());
 	}
 
 	protected void linkApiEnumerationCallWithApiEnumeration(final ApiEnumerationCall apiEnumerationCall,
@@ -2203,7 +2638,8 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		apiProperty.addApiPropertyCall(apiPropertyCall);
 	}
 
-	protected void linkArgCallsWithArgs(final Procedure procedure, final ArgsCallContext ctx) {
+	protected void linkArgCallsWithArgs(final Procedure procedure,
+			final ArgValueAssignmentsContainer argValueAssignmentsContainer, final ArgsCallContext ctx) {
 		// if there are args
 		if (ctx != null) {
 			/*
@@ -2222,18 +2658,36 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			// for each arg call
 			for (final ArgCallContext argCallCtx : ctx.argCall()) {
 				final ArgValueAssignment argValueAssignment = addArgValueAssignment(argCallCtx);
+				argValueAssignmentsContainer.addArgValueAssignment(argValueAssignment);
 
 				if (argsOfProcedure == null) {
-					LOG.warn("could not identify called procedure for arg call {}", argValueAssignment);
-				} else if (argsOfProcedure.size() < argCallIndex + 1) {
-					LOG.warn("{} does not accept surplus arg call {}", procedure, argValueAssignment);
+					LOG.warn("Could not identify called procedure for arg call {}.", argValueAssignment);
 				} else {
-					// determine the corresponding arg
-					final Arg arg = procedure.getArgsList().get(argCallIndex);
-					argValueAssignment.setArg(arg);
-				}
+					final ValueStmt assignedValueStmt = argValueAssignment.getAssignedValueStmt();
+					final Arg arg;
 
-				argCallIndex++;
+					// in case of a named arg call
+					if (assignedValueStmt != null && assignedValueStmt instanceof ValueAssignment) {
+						final ValueAssignment valueAssignment = (ValueAssignment) assignedValueStmt;
+						final Call assignedVariableCall = valueAssignment.getAssignedVariableCall();
+						final String name = assignedVariableCall.getName();
+						final Arg argWithSameName = procedure.getArgs().get(name);
+
+						if (argWithSameName == null) {
+							LOG.warn("{} does not have arg {}.", procedure, name);
+						}
+
+						arg = argWithSameName;
+					} else if (argsOfProcedure.size() < argCallIndex + 1) {
+						LOG.warn("{} does not accept surplus arg call {}.", procedure, argValueAssignment);
+						arg = null;
+					} else {
+						arg = procedure.getArgsList().get(argCallIndex);
+					}
+
+					argValueAssignment.setArg(arg);
+					argCallIndex++;
+				}
 			}
 		}
 	}
@@ -2242,8 +2696,17 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		arg.addArgCall(argCall);
 	}
 
+	protected void linkArrayElementCallWithVariable(final ArrayElementCall arrayElementCall, final Variable variable) {
+		variable.addVariableCall(arrayElementCall);
+	}
+
 	protected void linkConstantCallWithConstant(final ConstantCall constantCall, final Constant constant) {
 		constant.addConstantCall(constantCall);
+	}
+
+	protected void linkElementVariableCallWithElementVariable(final ElementVariableCall elementVariableCall,
+			final ElementVariable elementVariable) {
+		elementVariable.addElementVariableCall(elementVariableCall);
 	}
 
 	protected void linkEnumerationCallWithEnumeration(final EnumerationCall enumerationCall,
@@ -2260,34 +2723,65 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 			final ArgsCallContext ctx) {
 		function.addFunctionCall(functionCall);
 
-		linkArgCallsWithArgs(function, ctx);
+		linkArgCallsWithArgs(function, functionCall, ctx);
+	}
+
+	protected void linkFunctionCallWithFunction(final FunctionCall functionCall, final Function function,
+			final List<ArgsCallContext> ctxs) {
+		final ArgsCallContext ctx;
+
+		if (ctxs == null || ctxs.isEmpty()) {
+			ctx = null;
+		} else {
+			ctx = ctxs.get(0);
+		}
+
+		linkFunctionCallWithFunction(functionCall, function, ctx);
 	}
 
 	protected void linkPropertyGetCallWithPropertyGet(final PropertyGetCall propertyGetCall,
 			final PropertyGet propertyGet, final ArgsCallContext ctx) {
 		propertyGet.addPropertyGetCall(propertyGetCall);
 
-		linkArgCallsWithArgs(propertyGet, ctx);
+		linkArgCallsWithArgs(propertyGet, propertyGetCall, ctx);
+	}
+
+	protected void linkPropertyGetCallWithPropertyGet(final PropertyGetCall propertyGetCall,
+			final PropertyGet propertyGet, final List<ArgsCallContext> ctxs) {
+		final ArgsCallContext ctx;
+
+		if (ctxs == null || ctxs.isEmpty()) {
+			ctx = null;
+		} else {
+			ctx = ctxs.get(0);
+		}
+
+		linkPropertyGetCallWithPropertyGet(propertyGetCall, propertyGet, ctx);
 	}
 
 	protected void linkPropertyLetCallWithPropertySet(final PropertyLetCall propertyLetCall,
 			final PropertyLet propertyLet, final ArgsCallContext ctx) {
 		propertyLet.addPropertyLetCall(propertyLetCall);
 
-		linkArgCallsWithArgs(propertyLet, ctx);
+		linkArgCallsWithArgs(propertyLet, propertyLetCall, ctx);
 	}
 
 	protected void linkPropertySetCallWithPropertySet(final PropertySetCall propertySetCall,
 			final PropertySet propertySet, final ArgsCallContext ctx) {
 		propertySet.addPropertySetCall(propertySetCall);
 
-		linkArgCallsWithArgs(propertySet, ctx);
+		linkArgCallsWithArgs(propertySet, propertySetCall, ctx);
 	}
 
 	protected void linkSubCallWithSub(final SubCall subCall, final Sub sub, final ArgsCallContext ctx) {
 		sub.addSubCall(subCall);
 
-		linkArgCallsWithArgs(sub, ctx);
+		linkArgCallsWithArgs(sub, subCall, ctx);
+	}
+
+	protected void linkTypeElementCallWithTypeElement(final TypeElementCall typeElementCall,
+			final TypeElement typeElement) {
+		typeElement.addTypeElementCall(typeElementCall);
 	}
 
 	protected void linkVariableCallWithVariable(final VariableCall variableCall, final Variable variable) {
@@ -2295,10 +2789,7 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 	}
 
 	protected void registerASGElement(final ASGElement asgElement) {
-		assert asgElement != null;
-		assert asgElement.getCtx() != null;
-
-		VbParserContext.getInstance().getASGElementRegistry().addASGElement(asgElement);
+		module.getProgram().getASGElementRegistry().addASGElement(asgElement);
 	}
 
 	protected void registerScopedElement(final ScopedElement scopedElement) {
@@ -2309,18 +2800,18 @@ public abstract class ScopeImpl extends ScopedElementImpl implements Scope {
 		scopedElements.add(scopedElement);
 
 		/*
-		 * expressions should not be stored under their name, as they collide
-		 * with declarations under the same name -> only declarations
+		 * expressions should not be stored under their name, as they collide with
+		 * declarations under the same name -> only declarations
 		 */
 		if (scopedElement instanceof Declaration) {
 			final NamedElement namedElement = (NamedElement) scopedElement;
-			final String scopedElementKey = getScopedElementKey(namedElement.getName());
+			final String symbol = getSymbol(namedElement.getName());
 
-			if (scopedElementsSymbolTable.get(scopedElementKey) == null) {
-				scopedElementsSymbolTable.put(scopedElementKey, new ArrayList<ScopedElement>());
+			if (scopedElementsSymbolTable.get(symbol) == null) {
+				scopedElementsSymbolTable.put(symbol, new ArrayList<ScopedElement>());
 			}
 
-			scopedElementsSymbolTable.get(scopedElementKey).add(scopedElement);
+			scopedElementsSymbolTable.get(symbol).add(scopedElement);
 		}
 	}
 

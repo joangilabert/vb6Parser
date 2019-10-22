@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.redim.impl;
@@ -22,12 +22,12 @@ public class ReDimImpl extends ScopedElementImpl implements ReDim {
 
 	protected final RedimSubStmtContext ctx;
 
-	protected final StatementType statementType = StatementTypeEnum.ReDim;
+	protected final StatementType statementType = StatementTypeEnum.RE_DIM;
 
 	protected final Variable variable;
 
 	public ReDimImpl(final Variable variable, final Module module, final Scope scope, final RedimSubStmtContext ctx) {
-		super(module, scope, ctx);
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 		this.variable = variable;

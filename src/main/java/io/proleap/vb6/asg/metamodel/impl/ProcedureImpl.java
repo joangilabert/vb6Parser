@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 import io.proleap.vb6.VisualBasic6Parser.ArgContext;
 import io.proleap.vb6.VisualBasic6Parser.ArgDefaultValueContext;
@@ -26,6 +26,7 @@ import io.proleap.vb6.asg.metamodel.ModelElement;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Procedure;
 import io.proleap.vb6.asg.metamodel.ScopedElement;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumerationConstant;
 import io.proleap.vb6.asg.metamodel.call.ApiEnumerationConstantCall;
 import io.proleap.vb6.asg.metamodel.call.Call;
@@ -44,11 +45,15 @@ public abstract class ProcedureImpl extends ScopeImpl implements Procedure {
 
 	protected final String name;
 
-	public ProcedureImpl(final String name, final Module module, final ParseTree ctx) {
-		super(module, module, ctx);
+	protected final VisibilityEnum visibility;
+
+	public ProcedureImpl(final String name, final VisibilityEnum visibility, final Module module,
+			final ParserRuleContext ctx) {
+		super(module.getProgram(), module, module, ctx);
 
 		this.module = module;
 		this.name = name;
+		this.visibility = visibility;
 	}
 
 	@Override
@@ -87,7 +92,7 @@ public abstract class ProcedureImpl extends ScopeImpl implements Procedure {
 			final Type defaultValueLiteralType = determineType(ctx);
 
 			final ComplexType complexArgType = castComplexType(argType);
-			final List<ModelElement> referencedElements = getElements(complexArgType, name);
+			final List<ModelElement> referencedElements = getElements(null, complexArgType, name);
 			final ApiEnumerationConstant apiEnumerationConstant = castApiEnumerationConstant(referencedElements);
 
 			/*
@@ -183,6 +188,11 @@ public abstract class ProcedureImpl extends ScopeImpl implements Procedure {
 		}
 
 		return result;
+	}
+
+	@Override
+	public VisibilityEnum getVisibility() {
+		return visibility;
 	}
 
 	@Override

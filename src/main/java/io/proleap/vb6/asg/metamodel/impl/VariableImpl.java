@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -14,10 +14,11 @@ import java.util.List;
 import java.util.Set;
 
 import io.proleap.vb6.VisualBasic6Parser.VariableSubStmtContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.asg.inference.impl.TypeInferenceImpl;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Scope;
 import io.proleap.vb6.asg.metamodel.Variable;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
 import io.proleap.vb6.asg.metamodel.call.VariableCall;
 import io.proleap.vb6.asg.metamodel.type.Type;
 
@@ -43,13 +44,16 @@ public class VariableImpl extends ScopedElementImpl implements Variable {
 
 	protected final List<VariableCall> variableCalls = new ArrayList<VariableCall>();
 
-	public VariableImpl(final String name, final Type type, final Module module, final Scope scope,
-			final VariableSubStmtContext ctx) {
-		super(module, scope, ctx);
+	protected final VisibilityEnum visibility;
+
+	public VariableImpl(final String name, final VisibilityEnum visibility, final Type type, final Module module,
+			final Scope scope, final VariableSubStmtContext ctx) {
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 		this.name = name;
 		this.type = type;
+		this.visibility = visibility;
 	}
 
 	@Override
@@ -76,9 +80,8 @@ public class VariableImpl extends ScopedElementImpl implements Variable {
 
 	@Override
 	public Type getType() {
-		final Type defType = VbParserContext.getInstance().getTypeInference().inferTypeFromDefType(module, name);
-		final Type result = VbParserContext.getInstance().getTypeInference().inferType(type, defType,
-				typesOfAssignedValues);
+		final Type defType = new TypeInferenceImpl().inferTypeFromDefType(module, name);
+		final Type result = new TypeInferenceImpl().inferType(type, defType, typesOfAssignedValues);
 		return result;
 	}
 
@@ -90,6 +93,11 @@ public class VariableImpl extends ScopedElementImpl implements Variable {
 	@Override
 	public List<VariableCall> getVariableCalls() {
 		return variableCalls;
+	}
+
+	@Override
+	public VisibilityEnum getVisibility() {
+		return visibility;
 	}
 
 	@Override

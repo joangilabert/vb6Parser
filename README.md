@@ -1,15 +1,18 @@
-ANTLR4-based parser and grammar for Visual Basic 6.0
-====================================================
+ProLeap ANTLR4-based parser for Visual Basic 6.0
+================================================
 
-[![Build](https://img.shields.io/travis/uwol/vb6parser.svg)](https://travis-ci.org/uwol/vb6parser)
-[![Coverage](https://coveralls.io/repos/github/uwol/vb6parser/badge.svg?branch=master)](https://coveralls.io/github/uwol/vb6parser?branch=master)
-[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-
-This is a parser and grammar for Visual Basic 6.0, which generates an
-Abstract Syntax Tree (AST) and Abstract Semantic Graph (ASG) for Visual Basic 6.0 code.
+This is a **Visual Basic 6.0 parser** based on an [ANTLR4 grammar](src/main/antlr4/io/proleap/vb6/VisualBasic6.g4), 
+which generates an **Abstract Syntax Tree** (AST) and **Abstract Semantic Graph** (ASG) for Visual Basic 6.0 code.
 The AST represents plain Visual Basic 6.0 source code in a syntax tree structure.
-The ASG is generated from the AST by semantic analysis and provides data and control
+The ASG is generated from the AST by **semantic analysis** and provides data and control
 flow information (e. g. variable access).
+
+The parser is developed test-driven and has successfully been **applied to large Visual Basic 6.0 projects**.
+
+💫 **Star** if you like our work.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![ProLeap on Twitter](https://img.shields.io/twitter/follow/proleap_io.svg?style=social&label=Follow)](https://twitter.com/proleap_io)
 
 
 Example
@@ -28,50 +31,39 @@ End Sub
 
 ```
 (startRule
-	(module
-		(moduleBody
-			(moduleBodyElement
-				(subStmt
-					(visibility Private) Sub
-					(ambiguousIdentifier Command1_Click)
-					(argList ( ))
-					(block
-						(blockStmt
-							(letStmt
-								(implicitCallStmt_InStmt
-									(iCS_S_MembersCall
-										(iCS_S_VariableOrProcedureCall
-											(ambiguousIdentifier Text1))
-										(iCS_S_MemberCall .
-											(iCS_S_VariableOrProcedureCall
-												(ambiguousIdentifier
-													(ambiguousKeyword Text)))))) =
-								(valueStmt
-									(literal "Hello, world!"))))) End Sub)))) <EOF>)
+  (module
+    (moduleBody
+      (moduleBodyElement
+        (subStmt
+          (visibility Private) Sub
+          (ambiguousIdentifier Command1_Click)
+          (argList ( ))
+          (block
+            (blockStmt
+              (letStmt
+                (implicitCallStmt_InStmt
+                  (iCS_S_MembersCall
+                    (iCS_S_VariableOrProcedureCall
+                      (ambiguousIdentifier Text1))
+                    (iCS_S_MemberCall .
+                      (iCS_S_VariableOrProcedureCall
+                        (ambiguousIdentifier
+                          (ambiguousKeyword Text)))))) =
+                (valueStmt
+                  (literal "Hello, world!"))))) End Sub)))) <EOF>)
 ```
 
 
 Getting started
 ---------------
 
-To include the parser in your Maven project edit your `pom.xml` file as follows
-
-```
-<repositories>
-    <repository>
-        <id>jitpack.io</id>
-        <url>https://jitpack.io</url>
-    </repository>
-</repositories>
-```
-
-and add the dependency
+To include the parser in your Maven project build it and add the dependency:
 
 ```
 <dependency>
-    <groupId>com.github.uwol</groupId>
-    <artifactId>vb6parser</artifactId>
-    <version>-SNAPSHOT</version>
+  <groupId>io.github.uwol</groupId>
+  <artifactId>proleap-vb6-parser</artifactId>
+  <version>2.3.0</version>
 </dependency>
 ```
 
@@ -80,11 +72,9 @@ Use the following code as a starting point for developing own code.
 ### Simple: Generate an Abstract Semantic Graph (ASG) from VB6 code
 
 ```java
-io.proleap.vb6.asg.applicationcontext.VbParserContextFactory.configureDefaultApplicationContext();
-
 // generate ASG from plain VB6 code
 java.io.File inputFile = new java.io.File("src/test/resources/io/proleap/vb6/asg/HelloWorld.cls");
-io.proleap.vb6.asg.metamodel.Program program = io.proleap.vb6.asg.applicationcontext.VbParserContext.getInstance().getParserRunner().analyzeFile(inputFile);
+io.proleap.vb6.asg.metamodel.Program program = new io.proleap.vb6.asg.runner.impl.VbParserRunnerImpl().analyzeFile(inputFile);
 
 // navigate on ASG
 io.proleap.vb6.asg.metamodel.Module module = program.getClazzModule("HelloWorld");
@@ -95,17 +85,15 @@ io.proleap.vb6.asg.metamodel.type.Type typeOfI = variableI.getType();
 ### Complex: Generate an Abstract Semantic Graph (ASG) and traverse the Abstract Syntax Tree (AST)
 
 ```java
-io.proleap.vb6.asg.applicationcontext.VbParserContextFactory.configureDefaultApplicationContext();
-
 // generate ASG from plain VB6 code
 java.io.File inputFile = new java.io.File("src/test/resources/io/proleap/vb6/asg/HelloWorld.cls");
-io.proleap.vb6.asg.metamodel.Program program = io.proleap.vb6.asg.applicationcontext.VbParserContext.getInstance().getParserRunner().analyzeFile(inputFile);
+io.proleap.vb6.asg.metamodel.Program program = new io.proleap.vb6.asg.runner.impl.VbParserRunnerImpl().analyzeFile(inputFile);
 
 // traverse the AST
 io.proleap.vb6.VisualBasic6BaseVisitor<Boolean> visitor = new io.proleap.vb6.VisualBasic6BaseVisitor<Boolean>() {
   @Override
   public Boolean visitVariableSubStmt(final io.proleap.vb6.VisualBasic6Parser.VariableSubStmtContext ctx) {
-    io.proleap.vb6.asg.metamodel.Variable variable = (io.proleap.vb6.asg.metamodel.Variable) io.proleap.vb6.asg.applicationcontext.VbParserContext.getInstance().getASGElementRegistry().getASGElement(ctx);
+    io.proleap.vb6.asg.metamodel.Variable variable = (io.proleap.vb6.asg.metamodel.Variable) program.getASGElementRegistry().getASGElement(ctx);
     String name = variable.getName();
     io.proleap.vb6.asg.metamodel.type.Type type = variable.getType();
 
@@ -119,23 +107,35 @@ for (final io.proleap.vb6.asg.metamodel.Module module : program.getModules()) {
 ```
 
 
-Characteristics
----------------
+Where to look next
+------------------
 
-1. The grammar is line-based and takes into account whitespace, so that
-   member calls (e.g. "A.B") are distinguished from contextual object calls
-   in WITH statements (e.g. "A .B").
+- [ANTLR4 Visual Basic 6.0 grammar](src/main/antlr4/io/proleap/vb6/VisualBasic6.g4)
+- [Unit test code examples](src/test/java/io/proleap/vb6/asg/statement)
 
-2. Keywords can be used as identifiers depending on the context, enabling
-   e.g. "A.Type", but not "Type.B".
 
-3. The ANTLR4 grammar is derived from the Visual Basic 6.0 language reference
-   http://msdn.microsoft.com/en-us/library/aa338033%28v=vs.60%29.aspx
-   and tested against MSDN VB6 statement examples as well as several Visual
-   Basic 6.0 code repositories.
+How to cite
+-----------
 
-4. For parsing large Cobol source code files, following VM args have to be set: `-Xmx2048m -XX:MaxPermSize=256m`.
-   Intellij Plugin for ANTLR 4 has to be provided with those VM args in file `idea.vmoptions`.
+Please cite ProLeap Visual Basic 6.0 parser in your publications, if it helps your research. Here is an example BibTeX entry:
+
+```
+@misc{wolffgang2018vb6,
+  title={ProLeap Visual Basic 6.0 parser},
+  author={Wolffgang, Ulrich and others},
+  year={2018},
+  howpublished={\url{https://github.com/uwol/proleap-vb6-parser}},
+}
+```
+
+
+Features
+--------
+
+* The grammar is line-based and takes into account whitespace, so that member calls (e.g. `A.B`) are distinguished from contextual object calls in WITH statements (e.g. `A .B`).
+* Keywords can be used as identifiers depending on the context, enabling e.g. `A.Type`, but not `Type.B`.
+* The ANTLR4 grammar is derived from the [Visual Basic 6.0 language reference](http://msdn.microsoft.com/en-us/library/aa338033%28v=vs.60%29.aspx) and tested against MSDN VB6 statement examples as well as several Visual Basic 6.0 code repositories.
+* Rigorous test-driven development.
 
 
 Build process
@@ -181,16 +181,6 @@ Tests run: 215, Failures: 0, Errors: 0, Skipped: 0
 $ mvn clean install
 ```
 
-* To use the JAR in your Maven project, add following dependency to the pom.xml of your project:
-
-```
-<dependency>
-  <groupId>io.github.uwol</groupId>
-  <artifactId>vb6parser</artifactId>
-  <version>2.0.0</version>
-</dependency>
-```
-
 * To only run the tests:
 
 ```
@@ -201,15 +191,10 @@ $ mvn clean test
 Release process
 ---------------
 
-* Milestones are published in the [ANTLR grammars repo](https://github.com/antlr/grammars-v4).
+* Milestones of the grammar are published in the [ANTLR grammars repo](https://github.com/antlr/grammars-v4).
 
 
 License
 -------
 
-Licensed under the BSD 3-Clause License. See LICENSE for details.
-
-### And finally...
-
-Patches accepted, or create an issue!
-I'd love, if you could send me a note in which context you're using the parser. Thank you!
+Licensed under the MIT License. See LICENSE for details.

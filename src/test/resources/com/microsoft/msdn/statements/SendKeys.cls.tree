@@ -28,14 +28,15 @@
 													(valueStmt 
 														(literal 1)))) )))))) \n 
 						(blockStmt 
-							(appactivateStmt AppActivate   
+							(appActivateStmt AppActivate   
 								(valueStmt 
 									(implicitCallStmt_InStmt 
 										(iCS_S_VariableOrProcedureCall 
 											(ambiguousIdentifier ReturnValue)))))) \n 
 						(blockStmt 
 							(forNextStmt For   
-								(ambiguousIdentifier I)   =   
+								(iCS_S_VariableOrProcedureCall 
+									(ambiguousIdentifier I))   =   
 								(valueStmt 
 									(literal 1))   To   
 								(valueStmt 

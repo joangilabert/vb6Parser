@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.runner.impl;
@@ -14,20 +14,24 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.Trees;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
+import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import io.proleap.vb6.ThrowingErrorListener;
 import io.proleap.vb6.VisualBasic6Lexer;
 import io.proleap.vb6.VisualBasic6Parser;
 import io.proleap.vb6.VisualBasic6Parser.StartRuleContext;
+import io.proleap.vb6.asg.params.VbParserParams;
+import io.proleap.vb6.asg.params.impl.VbParserParamsImpl;
+import io.proleap.vb6.asg.runner.ThrowingErrorListener;
 import io.proleap.vb6.runner.VbParseTestRunner;
 
 /**
@@ -35,21 +39,31 @@ import io.proleap.vb6.runner.VbParseTestRunner;
  */
 public class VbParseTestRunnerImpl implements VbParseTestRunner {
 
-	private final static Logger LOG = LogManager.getLogger(VbParseTestRunnerImpl.class);
+	private final static Logger LOG = LoggerFactory.getLogger(VbParseTestRunnerImpl.class);
 
 	public final static String TREE_SUFFIX = ".tree";
+
+	protected static boolean isForm(final File inputFile) {
+		final String extension = FilenameUtils.getExtension(inputFile.getName()).toLowerCase();
+		return "frm".equals(extension);
+	}
+
+	protected VbParserParams createDefaultParams() {
+		final VbParserParams result = new VbParserParamsImpl();
+		return result;
+	}
 
 	protected void doCompareParseTree(final File treeFile, final StartRuleContext startRule,
 			final VisualBasic6Parser parser) throws IOException {
 
-		final String treeFileData = FileUtils.readFileToString(treeFile);
+		final String treeFileData = FileUtils.readFileToString(treeFile, StandardCharsets.UTF_8);
 
-		if (!Strings.isBlank(treeFileData)) {
+		if (!StringUtils.isEmpty(treeFileData)) {
 			LOG.info("Comparing parse tree with file {}.", treeFile.getName());
 
 			final String inputFileTree = Trees.toStringTree(startRule, parser);
-			final String cleanedInputFileTree = io.proleap.vb6.util.StringUtils.cleanFileTree(inputFileTree);
-			final String cleanedTreeFileData = io.proleap.vb6.util.StringUtils.cleanFileTree(treeFileData);
+			final String cleanedInputFileTree = io.proleap.vb6.util.VbTestStringUtils.cleanFileTree(inputFileTree);
+			final String cleanedTreeFileData = io.proleap.vb6.util.VbTestStringUtils.cleanFileTree(treeFileData);
 
 			assertEquals(cleanedTreeFileData, cleanedInputFileTree);
 		} else {
@@ -57,20 +71,26 @@ public class VbParseTestRunnerImpl implements VbParseTestRunner {
 		}
 	}
 
-	protected void doParse(final File inputFile) throws IOException {
-		LOG.info("Parsing file {}.", inputFile.getName());
+	protected void doParse(final File inputFile, final VbParserParams params) throws IOException {
+		final Charset charset = params.getCharset();
+
+		LOG.info("Parsing file {} with charset {}.", inputFile.getName(), charset);
 
 		final InputStream inputStream = new FileInputStream(inputFile);
-		final VisualBasic6Lexer lexer = new VisualBasic6Lexer(new ANTLRInputStream(inputStream));
+		final VisualBasic6Lexer lexer = new VisualBasic6Lexer(CharStreams.fromStream(inputStream, charset));
 
-		lexer.removeErrorListeners();
-		lexer.addErrorListener(ThrowingErrorListener.INSTANCE);
+		if (!params.getIgnoreSyntaxErrors()) {
+			lexer.removeErrorListeners();
+			lexer.addErrorListener(new ThrowingErrorListener());
+		}
 
 		final CommonTokenStream tokens = new CommonTokenStream(lexer);
 		final VisualBasic6Parser parser = new VisualBasic6Parser(tokens);
 
-		parser.removeErrorListeners();
-		parser.addErrorListener(ThrowingErrorListener.INSTANCE);
+		if (!params.getIgnoreSyntaxErrors()) {
+			parser.removeErrorListeners();
+			parser.addErrorListener(new ThrowingErrorListener());
+		}
 
 		final StartRuleContext startRule = parser.startRule();
 		final File treeFile = new File(inputFile.getAbsolutePath() + TREE_SUFFIX);
@@ -80,33 +100,22 @@ public class VbParseTestRunnerImpl implements VbParseTestRunner {
 		}
 	}
 
-	private boolean isClazzModule(final File inputFile) {
+	protected boolean isClazzModule(final File inputFile) {
 		final String extension = FilenameUtils.getExtension(inputFile.getName());
 		return "cls".equals(extension);
 	}
 
-	private boolean isStandardModule(final File inputFile) {
+	protected boolean isStandardModule(final File inputFile) {
 		final String extension = FilenameUtils.getExtension(inputFile.getName());
 		return "bas".equals(extension);
 	}
 
 	@Override
-	public void parseDirectory(final File inputDirectory) throws IOException {
-		if (inputDirectory.isDirectory() && !inputDirectory.isHidden()) {
-			for (final File inputFile : inputDirectory.listFiles()) {
-				if (inputFile.isFile() && !inputFile.isHidden()) {
-					parseFile(inputFile);
-				}
-			}
-		}
-	}
-
-	@Override
 	public void parseFile(final File inputFile) throws IOException {
-		if (!isClazzModule(inputFile) && !isStandardModule(inputFile)) {
+		if (!isClazzModule(inputFile) && !isStandardModule(inputFile) && !isForm(inputFile)) {
 			LOG.info("Ignoring file {}.", inputFile.getName());
 		} else {
-			doParse(inputFile);
+			doParse(inputFile, createDefaultParams());
 		}
 	}
 }

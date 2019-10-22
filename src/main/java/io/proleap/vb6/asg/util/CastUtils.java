@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.util;
@@ -24,6 +24,7 @@ import io.proleap.vb6.asg.metamodel.api.ApiProperty;
 import io.proleap.vb6.asg.metamodel.statement.constant.Constant;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.Enumeration;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.EnumerationConstant;
+import io.proleap.vb6.asg.metamodel.statement.foreach.ElementVariable;
 import io.proleap.vb6.asg.metamodel.statement.function.Function;
 import io.proleap.vb6.asg.metamodel.statement.property.get.PropertyGet;
 import io.proleap.vb6.asg.metamodel.statement.property.let.PropertyLet;
@@ -177,6 +178,27 @@ public class CastUtils {
 		return element != null && element instanceof Constant ? (Constant) element : null;
 	}
 
+	public static ElementVariable castElementVariable(final Collection<ModelElement> elements) {
+		ElementVariable result = null;
+
+		if (elements != null) {
+			for (final ModelElement element : elements) {
+				final ElementVariable elementVariable = castElementVariable(element);
+
+				if (elementVariable != null) {
+					result = elementVariable;
+					break;
+				}
+			}
+		}
+
+		return result;
+	}
+
+	public static ElementVariable castElementVariable(final ModelElement element) {
+		return element != null && element instanceof ElementVariable ? (ElementVariable) element : null;
+	}
+
 	public static Enumeration castEnumeration(final Collection<ModelElement> elements) {
 		Enumeration result = null;
 
@@ -196,6 +218,10 @@ public class CastUtils {
 
 	public static Enumeration castEnumeration(final ModelElement element) {
 		return element != null && element instanceof Enumeration ? (Enumeration) element : null;
+	}
+
+	public static Enumeration castEnumeration(final Type type) {
+		return type != null && type instanceof Enumeration ? (Enumeration) type : null;
 	}
 
 	public static EnumerationConstant castEnumerationConstant(final Collection<ModelElement> elements) {
@@ -368,6 +394,35 @@ public class CastUtils {
 
 	public static Sub castSub(final ModelElement element) {
 		return element != null && element instanceof Sub ? (Sub) element : null;
+	}
+
+	public static io.proleap.vb6.asg.metamodel.TypeElement castTypeElement(final Collection<ModelElement> elements) {
+		io.proleap.vb6.asg.metamodel.TypeElement result = null;
+
+		if (elements != null) {
+			for (final ModelElement element : elements) {
+				final io.proleap.vb6.asg.metamodel.TypeElement typeElement = castTypeElement(element);
+
+				if (typeElement != null) {
+					result = typeElement;
+					break;
+				}
+			}
+		}
+
+		return result;
+	}
+
+	public static io.proleap.vb6.asg.metamodel.TypeElement castTypeElement(final ModelElement element) {
+		return element != null && element instanceof io.proleap.vb6.asg.metamodel.TypeElement
+				? (io.proleap.vb6.asg.metamodel.TypeElement) element
+				: null;
+	}
+
+	public static io.proleap.vb6.asg.metamodel.Type castTypeStmtType(final Type type) {
+		return type != null && type instanceof io.proleap.vb6.asg.metamodel.Type
+				? (io.proleap.vb6.asg.metamodel.Type) type
+				: null;
 	}
 
 	public static Variable castVariable(final Collection<ModelElement> elements) {

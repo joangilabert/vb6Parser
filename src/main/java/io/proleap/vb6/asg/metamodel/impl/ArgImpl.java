@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Set;
 
 import io.proleap.vb6.VisualBasic6Parser.ArgContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.asg.inference.impl.TypeInferenceImpl;
 import io.proleap.vb6.asg.metamodel.Arg;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Procedure;
@@ -22,6 +22,7 @@ import io.proleap.vb6.asg.metamodel.ProcedureDeclaration;
 import io.proleap.vb6.asg.metamodel.Scope;
 import io.proleap.vb6.asg.metamodel.call.ArgCall;
 import io.proleap.vb6.asg.metamodel.call.Call;
+import io.proleap.vb6.asg.metamodel.statement.event.Event;
 import io.proleap.vb6.asg.metamodel.type.Type;
 
 public class ArgImpl extends ScopedElementImpl implements Arg {
@@ -31,6 +32,8 @@ public class ArgImpl extends ScopedElementImpl implements Arg {
 	protected final ArgContext ctx;
 
 	protected Call defaultValueCall;
+
+	protected Event event;
 
 	protected final boolean isOptional;
 
@@ -43,14 +46,14 @@ public class ArgImpl extends ScopedElementImpl implements Arg {
 	protected final Type type;
 
 	/*
-	 * LinkedHashSet, so that entries are ordered by their insertion order,
-	 * giving precedence to types declared near to the assigned variable
+	 * LinkedHashSet, so that entries are ordered by their insertion order, giving
+	 * precedence to types declared near to the assigned variable
 	 */
 	protected Set<Type> typesOfAssignedValues = new LinkedHashSet<Type>();
 
-	public ArgImpl(final String name, final Type type, final boolean isOptional, final Module module,
-			final Scope scope, final ArgContext ctx) {
-		super(module, scope, ctx);
+	public ArgImpl(final String name, final Type type, final boolean isOptional, final Module module, final Scope scope,
+			final ArgContext ctx) {
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 		this.isOptional = isOptional;
@@ -86,6 +89,11 @@ public class ArgImpl extends ScopedElementImpl implements Arg {
 	}
 
 	@Override
+	public Event getEvent() {
+		return event;
+	}
+
+	@Override
 	public Module getModule() {
 		return module;
 	}
@@ -107,9 +115,8 @@ public class ArgImpl extends ScopedElementImpl implements Arg {
 
 	@Override
 	public Type getType() {
-		final Type defType = VbParserContext.getInstance().getTypeInference().inferTypeFromDefType(module, name);
-		final Type result = VbParserContext.getInstance().getTypeInference().inferType(type, defType,
-				typesOfAssignedValues);
+		final Type defType = new TypeInferenceImpl().inferTypeFromDefType(module, name);
+		final Type result = new TypeInferenceImpl().inferType(type, defType, typesOfAssignedValues);
 		return result;
 	}
 
@@ -141,6 +148,11 @@ public class ArgImpl extends ScopedElementImpl implements Arg {
 	@Override
 	public void setDefaultValueCall(final Call defaultValueCall) {
 		this.defaultValueCall = defaultValueCall;
+	}
+
+	@Override
+	public void setEvent(final Event event) {
+		this.event = event;
 	}
 
 	@Override

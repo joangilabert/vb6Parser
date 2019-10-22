@@ -1,32 +1,33 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.runner.impl;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
-import org.antlr.v4.runtime.ANTLRInputStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.proleap.vb6.VisualBasic6Lexer;
 import io.proleap.vb6.VisualBasic6Parser;
 import io.proleap.vb6.VisualBasic6Parser.StartRuleContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.asg.exception.VbParserException;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Program;
-import io.proleap.vb6.asg.metamodel.VbBaseType;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumeration;
 import io.proleap.vb6.asg.metamodel.api.ApiModule;
 import io.proleap.vb6.asg.metamodel.api.ApiProcedure;
@@ -37,21 +38,24 @@ import io.proleap.vb6.asg.metamodel.api.impl.ApiModuleImpl;
 import io.proleap.vb6.asg.metamodel.api.impl.ApiProcedureImpl;
 import io.proleap.vb6.asg.metamodel.api.impl.ApiPropertyImpl;
 import io.proleap.vb6.asg.metamodel.impl.ProgramImpl;
-import io.proleap.vb6.asg.registry.TypeRegistry;
-import io.proleap.vb6.asg.registry.api.ApiEnumerationRegistry;
-import io.proleap.vb6.asg.registry.api.ApiProcedureRegistry;
-import io.proleap.vb6.asg.registry.api.ApiPropertyRegistry;
+import io.proleap.vb6.asg.metamodel.registry.TypeRegistry;
+import io.proleap.vb6.asg.metamodel.registry.api.ApiProcedureRegistry;
+import io.proleap.vb6.asg.metamodel.type.VbBaseType;
+import io.proleap.vb6.asg.params.VbParserParams;
+import io.proleap.vb6.asg.params.impl.VbParserParamsImpl;
+import io.proleap.vb6.asg.runner.ThrowingErrorListener;
 import io.proleap.vb6.asg.runner.VbParserRunner;
 import io.proleap.vb6.asg.visitor.ParserVisitor;
 import io.proleap.vb6.asg.visitor.impl.VbDeclarationVisitorImpl;
 import io.proleap.vb6.asg.visitor.impl.VbExpressionVisitorImpl;
 import io.proleap.vb6.asg.visitor.impl.VbModuleNameAnalyzerVisitorImpl;
+import io.proleap.vb6.asg.visitor.impl.VbModuleVisitorImpl;
 import io.proleap.vb6.asg.visitor.impl.VbTypeAssignmentVisitorImpl;
 import io.proleap.vb6.asg.visitor.impl.VbTypeVisitorImpl;
 
 public class VbParserRunnerImpl implements VbParserRunner {
 
-	protected final static Logger LOG = LogManager.getLogger(VbParserRunnerImpl.class);
+	private final static Logger LOG = LoggerFactory.getLogger(VbParserRunnerImpl.class);
 
 	/**
 	 * determines, how deep expressions and their type assignments should be
@@ -60,14 +64,25 @@ public class VbParserRunnerImpl implements VbParserRunner {
 	protected final int TYPE_ANALYSIS_DEPTH = 4;
 
 	protected void analyze(final Program program) {
-		registerModelElements();
-
+		analyzeTypeDefinitions(program);
 		analyzeDeclarations(program);
 		analyzeExpressions(program);
 
 		for (int i = 0; i < TYPE_ANALYSIS_DEPTH; i++) {
 			analyzeTypeAssignments(program);
 		}
+	}
+
+	@Override
+	public Program analyzeCode(final String vbCode, final String moduleName, final VbParserParams params)
+			throws IOException {
+		final Program program = new ProgramImpl();
+		registerModelElements(program);
+
+		parseCode(vbCode, moduleName, program, params);
+		analyze(program);
+
+		return program;
 	}
 
 	protected void analyzeDeclarations(final Program program) {
@@ -80,9 +95,9 @@ public class VbParserRunnerImpl implements VbParserRunner {
 	}
 
 	/**
-	 * VB modules can have their module name declared by an attribute named
-	 * VB_NAME, hat can deviate from the module file name. The value of
-	 * attribute VB_NAME is returned by this method.
+	 * VB modules can have their module name declared by an attribute named VB_NAME,
+	 * hat can deviate from the module file name. The value of attribute VB_NAME is
+	 * returned by this method.
 	 */
 	protected String analyzeDeclaredModuleName(final StartRuleContext ctx) {
 		final VbModuleNameAnalyzerVisitorImpl visitor = new VbModuleNameAnalyzerVisitorImpl();
@@ -95,19 +110,6 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		return moduleName;
 	}
 
-	@Override
-	public Program analyzeDirectory(final File inputDirectory) throws IOException {
-		final Program program = new ProgramImpl();
-
-		for (final File inputFile : inputDirectory.listFiles()) {
-			parseFile(inputFile, program);
-		}
-
-		analyze(program);
-
-		return program;
-	}
-
 	protected void analyzeExpressions(final Program program) {
 		for (final Module module : program.getModules()) {
 			final ParserVisitor visitor = new VbExpressionVisitorImpl(module);
@@ -118,10 +120,35 @@ public class VbParserRunnerImpl implements VbParserRunner {
 	}
 
 	@Override
-	public Program analyzeFile(final File inputFile) throws IOException {
-		final Program program = new ProgramImpl();
+	public Program analyzeFile(final File vbFile) throws IOException {
+		return analyzeFile(vbFile, createDefaultParams());
+	}
 
-		parseFile(inputFile, program);
+	@Override
+	public Program analyzeFile(final File vbFile, final VbParserParams params) throws IOException {
+		final Program program = new ProgramImpl();
+		registerModelElements(program);
+
+		parseFile(vbFile, program, params);
+		analyze(program);
+
+		return program;
+	}
+
+	@Override
+	public Program analyzeFiles(final List<File> vbFiles) throws IOException {
+		return analyzeFiles(vbFiles, createDefaultParams());
+	}
+
+	@Override
+	public Program analyzeFiles(final List<File> vbFiles, final VbParserParams params) throws IOException {
+		final Program program = new ProgramImpl();
+		registerModelElements(program);
+
+		for (final File vbFile : vbFiles) {
+			parseFile(vbFile, program, params);
+		}
+
 		analyze(program);
 
 		return program;
@@ -136,16 +163,26 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		}
 	}
 
-	protected ApiEnumerationRegistry getApiEnumerationRegistry() {
-		return VbParserContext.getInstance().getApiEnumerationRegistry();
+	protected void analyzeTypeDefinitions(final Program program) {
+		for (final Module module : program.getModules()) {
+			final ParserVisitor visitor = new VbTypeVisitorImpl(module);
+
+			LOG.info("Analyzing type and enumeration definitions of module {}.", module.getName());
+			visitor.visit(module.getCtx());
+		}
+	}
+
+	protected String capitalize(final String line) {
+		return Character.toUpperCase(line.charAt(0)) + line.substring(1);
+	}
+
+	protected VbParserParams createDefaultParams() {
+		final VbParserParams result = new VbParserParamsImpl();
+		return result;
 	}
 
 	protected String getModuleName(final File inputFile) {
-		return StringUtils.capitalize(FilenameUtils.removeExtension(inputFile.getName()));
-	}
-
-	protected TypeRegistry getTypeRegistry() {
-		return VbParserContext.getInstance().getTypeRegistry();
+		return capitalize(FilenameUtils.removeExtension(inputFile.getName()));
 	}
 
 	protected boolean isClazzModule(final File inputFile) {
@@ -158,59 +195,86 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		return "bas".equals(extension);
 	}
 
-	protected void parseFile(final File inputFile, final Program program) throws IOException {
-		if (!inputFile.isFile()) {
-			LOG.warn("Could not find file {}", inputFile.getAbsolutePath());
-		} else if (inputFile.isHidden()) {
-			LOG.warn("Ignoring hidden file {}", inputFile.getAbsolutePath());
-		} else if (!isClazzModule(inputFile) && !isStandardModule(inputFile)) {
-			LOG.info("Ignoring file {} because of file extension.", inputFile.getAbsolutePath());
+	protected void parseCode(final String vbCode, final String moduleName, final boolean isClazzModule,
+			final boolean isStandardModule, final Program program, final VbParserParams params) throws IOException {
+		// run the lexer
+		final VisualBasic6Lexer lexer = new VisualBasic6Lexer(CharStreams.fromString(vbCode));
+
+		if (!params.getIgnoreSyntaxErrors()) {
+			// register an error listener, so that preprocessing stops on errors
+			lexer.removeErrorListeners();
+			lexer.addErrorListener(new ThrowingErrorListener());
+		}
+
+		// get a list of matched tokens
+		final CommonTokenStream tokens = new CommonTokenStream(lexer);
+
+		// pass the tokens to the parser
+		final VisualBasic6Parser parser = new VisualBasic6Parser(tokens);
+
+		if (!params.getIgnoreSyntaxErrors()) {
+			// register an error listener, so that preprocessing stops on errors
+			parser.removeErrorListeners();
+			parser.addErrorListener(new ThrowingErrorListener());
+		}
+
+		// specify our entry point
+		final StartRuleContext ctx = parser.startRule();
+
+		// determine the effective module name
+		final String declaredModuleName = analyzeDeclaredModuleName(ctx);
+		final String effectiveModuleName;
+
+		if (declaredModuleName != null && !declaredModuleName.isEmpty()) {
+			effectiveModuleName = declaredModuleName;
 		} else {
-			LOG.info("Parsing file {}.", inputFile.getName());
+			effectiveModuleName = moduleName;
+		}
 
-			final InputStream inputStream = new FileInputStream(inputFile);
+		final List<String> lines = splitLines(vbCode);
+		final ParserVisitor visitor = new VbModuleVisitorImpl(effectiveModuleName, lines, isClazzModule,
+				isStandardModule, tokens, program);
 
-			final VisualBasic6Lexer lexer = new VisualBasic6Lexer(new ANTLRInputStream(inputStream));
+		visitor.visit(ctx);
+	}
 
-			// get a list of matched tokens
-			final CommonTokenStream tokens = new CommonTokenStream(lexer);
+	protected void parseCode(final String vbCode, final String moduleName, final Program program,
+			final VbParserParams params) throws IOException {
+		LOG.info("Parsing module {}.", moduleName);
 
-			// pass the tokens to the parser
-			final VisualBasic6Parser parser = new VisualBasic6Parser(tokens);
+		parseCode(vbCode, moduleName, true, false, program, params);
+	}
 
-			// specify our entry point
-			final StartRuleContext ctx = parser.startRule();
+	protected void parseFile(final File vbFile, final Program program, final VbParserParams params) throws IOException {
+		if (!vbFile.isFile()) {
+			throw new VbParserException("Could not find file " + vbFile.getAbsolutePath());
+		} else {
+			final Charset charset = params.getCharset();
+
+			LOG.info("Parsing file {} with charset {}.", vbFile.getName(), charset);
+
+			final String vbCode = FileUtils.readFileToString(vbFile, charset);
 
 			// determine the module name
-			final String declaredModuleName = analyzeDeclaredModuleName(ctx);
-			final String moduleName;
-
-			if (declaredModuleName != null && !declaredModuleName.isEmpty()) {
-				moduleName = declaredModuleName;
-			} else {
-				moduleName = getModuleName(inputFile);
-			}
+			final String moduleName = getModuleName(vbFile);
 
 			// analyze contained modules and types
-			final boolean isClazzModule = isClazzModule(inputFile);
-			final boolean isStandardModule = isStandardModule(inputFile);
+			final boolean isClazzModule = isClazzModule(vbFile);
+			final boolean isStandardModule = isStandardModule(vbFile);
 
-			final ParserVisitor visitor = new VbTypeVisitorImpl(program, moduleName, isClazzModule, isStandardModule);
-
-			LOG.info("Collecting types in file {}.", inputFile.getName());
-			visitor.visit(ctx);
+			parseCode(vbCode, moduleName, isClazzModule, isStandardModule, program, params);
 		}
 	}
 
-	private void registerApiEnumeration(final ApiEnumeration apiEnumeration) {
-		getTypeRegistry().registerType(apiEnumeration);
-		getApiEnumerationRegistry().registerApiEnumeration(apiEnumeration);
+	protected void registerApiEnumeration(final Program program, final ApiEnumeration apiEnumeration) {
+		program.getTypeRegistry().registerType(apiEnumeration);
+		program.getApiEnumerationRegistry().registerApiEnumeration(apiEnumeration);
 	}
 
-	protected void registerApiEnumerations() {
+	protected void registerApiEnumerations(final Program program) {
 		{
 			final ApiEnumeration adodbCursorLocationEnum = new ApiEnumerationImpl("ADODB.CursorLocationEnum");
-			registerApiEnumeration(adodbCursorLocationEnum);
+			registerApiEnumeration(program, adodbCursorLocationEnum);
 
 			adodbCursorLocationEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adUseClient", adodbCursorLocationEnum));
@@ -218,7 +282,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbConnectOptionEnum = new ApiEnumerationImpl("ADODB.ConnectOptionEnum");
-			registerApiEnumeration(adodbConnectOptionEnum);
+			registerApiEnumeration(program, adodbConnectOptionEnum);
 
 			adodbConnectOptionEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adConnectUnspecified", adodbConnectOptionEnum));
@@ -228,7 +292,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbCursorTypeEnum = new ApiEnumerationImpl("ADODB.CursorTypeEnum");
-			registerApiEnumeration(adodbCursorTypeEnum);
+			registerApiEnumeration(program, adodbCursorTypeEnum);
 
 			adodbCursorTypeEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adOpenUnspecified", adodbCursorTypeEnum));
@@ -244,7 +308,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbEventStatusEnum = new ApiEnumerationImpl("ADODB.EventStatusEnum");
-			registerApiEnumeration(adodbEventStatusEnum);
+			registerApiEnumeration(program, adodbEventStatusEnum);
 
 			adodbEventStatusEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adStatusCancel", adodbEventStatusEnum));
@@ -260,7 +324,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbFilterGroupEnum = new ApiEnumerationImpl("ADODB.FilterGroupEnum");
-			registerApiEnumeration(adodbFilterGroupEnum);
+			registerApiEnumeration(program, adodbFilterGroupEnum);
 
 			adodbFilterGroupEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adFilterNone", adodbFilterGroupEnum));
@@ -276,7 +340,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbLockTypeEnum = new ApiEnumerationImpl("ADODB.LockTypeEnum");
-			registerApiEnumeration(adodbLockTypeEnum);
+			registerApiEnumeration(program, adodbLockTypeEnum);
 
 			adodbLockTypeEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adLockUnspecified", adodbLockTypeEnum));
@@ -292,7 +356,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbObjectStateEnum = new ApiEnumerationImpl("ADODB.ObjectStateEnum");
-			registerApiEnumeration(adodbObjectStateEnum);
+			registerApiEnumeration(program, adodbObjectStateEnum);
 
 			adodbObjectStateEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adStateClosed", adodbObjectStateEnum));
@@ -308,7 +372,7 @@ public class VbParserRunnerImpl implements VbParserRunner {
 
 		{
 			final ApiEnumeration adodbSearchDirectionEnum = new ApiEnumerationImpl("ADODB.SearchDirectionEnum");
-			registerApiEnumeration(adodbSearchDirectionEnum);
+			registerApiEnumeration(program, adodbSearchDirectionEnum);
 
 			adodbSearchDirectionEnum.registerApiEnumerationConstant(
 					new ApiEnumerationConstantImpl("adSearchBackward", adodbSearchDirectionEnum));
@@ -317,10 +381,11 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		}
 	}
 
-	protected void registerApiModules() {
-		final TypeRegistry typeRegistry = VbParserContext.getInstance().getTypeRegistry();
+	protected void registerApiModules(final Program program) {
+		final TypeRegistry typeRegistry = program.getTypeRegistry();
 
-		final ApiEnumeration objectStateEnum = getApiEnumerationRegistry().getApiEnumeration("ADODB.ObjectStateEnum");
+		final ApiEnumeration objectStateEnum = program.getApiEnumerationRegistry()
+				.getApiEnumeration("ADODB.ObjectStateEnum");
 		final ApiModule adodbErrors;
 
 		{
@@ -362,8 +427,8 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		}
 	}
 
-	protected void registerApiProcedures() {
-		final ApiProcedureRegistry apiProcedureRegistry = VbParserContext.getInstance().getApiProcedureRegistry();
+	protected void registerApiProcedures(final Program program) {
+		final ApiProcedureRegistry apiProcedureRegistry = program.getApiProcedureRegistry();
 
 		apiProcedureRegistry.registerApiProcedure(new ApiProcedureImpl("Asc", VbBaseType.INTEGER));
 
@@ -406,25 +471,33 @@ public class VbParserRunnerImpl implements VbParserRunner {
 		apiProcedureRegistry.registerApiProcedure(new ApiProcedureImpl("UCase", VbBaseType.STRING));
 	}
 
-	protected void registerApiProperties() {
-		final ApiPropertyRegistry apiPropertyRegistry = VbParserContext.getInstance().getApiPropertyRegistry();
-
-		apiPropertyRegistry.registerApiProperty(new ApiPropertyImpl("AppMajor", VbBaseType.INTEGER));
+	protected void registerApiProperties(final Program program) {
+		program.getApiPropertyRegistry().registerApiProperty(new ApiPropertyImpl("AppMajor", VbBaseType.INTEGER));
 	}
 
-	protected void registerModelElements() {
-		registerVbBaseTypes();
-		registerApiEnumerations();
-		registerApiProperties();
-		registerApiProcedures();
-		registerApiModules();
+	protected void registerModelElements(final Program program) {
+		registerVbBaseTypes(program);
+		registerApiEnumerations(program);
+		registerApiProperties(program);
+		registerApiProcedures(program);
+		registerApiModules(program);
 	}
 
-	protected void registerVbBaseTypes() {
-		final TypeRegistry typeRegistry = VbParserContext.getInstance().getTypeRegistry();
-
+	protected void registerVbBaseTypes(final Program program) {
 		for (final VbBaseType vbType : VbBaseType.values()) {
-			typeRegistry.registerType(vbType);
+			program.getTypeRegistry().registerType(vbType);
 		}
+	}
+
+	protected List<String> splitLines(final String input) {
+		final Scanner scanner = new Scanner(input);
+		final List<String> result = new ArrayList<String>();
+
+		while (scanner.hasNextLine()) {
+			result.add(scanner.nextLine());
+		}
+
+		scanner.close();
+		return result;
 	}
 }

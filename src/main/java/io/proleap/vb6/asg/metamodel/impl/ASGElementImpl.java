@@ -1,21 +1,20 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
 
-import java.util.Collection;
 import java.util.List;
 
-import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.ParserRuleContext;
 
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
 import io.proleap.vb6.asg.metamodel.ASGElement;
-import io.proleap.vb6.asg.registry.ASGElementRegistry;
+import io.proleap.vb6.asg.metamodel.Program;
+import io.proleap.vb6.asg.metamodel.registry.ASGElementRegistry;
 import io.proleap.vb6.asg.util.ANTLRUtils;
 
 /**
@@ -23,29 +22,36 @@ import io.proleap.vb6.asg.util.ANTLRUtils;
  */
 public abstract class ASGElementImpl implements ASGElement {
 
-	protected final ParseTree ctx;
+	protected final ParserRuleContext ctx;
 
-	public ASGElementImpl(final ParseTree ctx) {
+	protected final Program program;
+
+	public ASGElementImpl(final Program program, final ParserRuleContext ctx) {
+		this.program = program;
 		this.ctx = ctx;
 	}
 
 	@Override
-	public Collection<ASGElement> getChildren() {
-		final ASGElementRegistry asgElementRegistry = VbParserContext.getInstance().getASGElementRegistry();
+	public List<ASGElement> getChildren() {
+		final ASGElementRegistry asgElementRegistry = program.getASGElementRegistry();
 		final List<ASGElement> result = ANTLRUtils.findASGElementChildren(ctx, asgElementRegistry);
 		return result;
 	}
 
 	@Override
-	public ParseTree getCtx() {
+	public ParserRuleContext getCtx() {
 		return ctx;
 	}
 
 	@Override
 	public ASGElement getParent() {
-		final ASGElementRegistry asgElementRegistry = VbParserContext.getInstance().getASGElementRegistry();
+		final ASGElementRegistry asgElementRegistry = program.getASGElementRegistry();
 		final ASGElement result = ANTLRUtils.findParent(ASGElement.class, ctx, asgElementRegistry);
 		return result;
 	}
 
+	@Override
+	public Program getProgram() {
+		return program;
+	}
 }

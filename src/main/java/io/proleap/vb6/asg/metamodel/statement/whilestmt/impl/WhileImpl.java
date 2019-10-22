@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.whilestmt.impl;
@@ -23,10 +23,10 @@ public class WhileImpl extends ScopeImpl implements While {
 
 	protected final WhileWendStmtContext ctx;
 
-	protected final StatementType statementType = StatementTypeEnum.While;
+	protected final StatementType statementType = StatementTypeEnum.WHILE;
 
 	public WhileImpl(final Module module, final Scope scope, final WhileWendStmtContext ctx) {
-		super(module, scope, ctx);
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 	}

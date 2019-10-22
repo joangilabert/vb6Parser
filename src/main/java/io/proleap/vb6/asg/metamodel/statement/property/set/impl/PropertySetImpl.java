@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.property.set.impl;
@@ -13,6 +13,8 @@ import java.util.List;
 
 import io.proleap.vb6.VisualBasic6Parser.PropertySetStmtContext;
 import io.proleap.vb6.asg.metamodel.Module;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
+import io.proleap.vb6.asg.metamodel.call.Call;
 import io.proleap.vb6.asg.metamodel.call.PropertySetCall;
 import io.proleap.vb6.asg.metamodel.impl.ProcedureImpl;
 import io.proleap.vb6.asg.metamodel.statement.StatementType;
@@ -25,10 +27,11 @@ public class PropertySetImpl extends ProcedureImpl implements PropertySet {
 
 	protected final List<PropertySetCall> propertySetCalls = new ArrayList<PropertySetCall>();
 
-	protected final StatementType statementType = StatementTypeEnum.PropertySet;
+	protected final StatementType statementType = StatementTypeEnum.PROPERTY_SET;
 
-	public PropertySetImpl(final String name, final Module module, final PropertySetStmtContext ctx) {
-		super(name, module, ctx);
+	public PropertySetImpl(final String name, final VisibilityEnum visibility, final Module module,
+			final PropertySetStmtContext ctx) {
+		super(name, visibility, module, ctx);
 
 		this.ctx = ctx;
 	}
@@ -36,6 +39,11 @@ public class PropertySetImpl extends ProcedureImpl implements PropertySet {
 	@Override
 	public void addPropertySetCall(final PropertySetCall propertySetCall) {
 		propertySetCalls.add(propertySetCall);
+	}
+
+	@Override
+	public List<Call> getCalls() {
+		return new ArrayList<>(getPropertySetCalls());
 	}
 
 	@Override

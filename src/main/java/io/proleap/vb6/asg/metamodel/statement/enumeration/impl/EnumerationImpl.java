@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.enumeration.impl;
@@ -13,13 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 import io.proleap.vb6.VisualBasic6Parser.EnumerationStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.EnumerationStmt_ConstantContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
 import io.proleap.vb6.asg.metamodel.Module;
+import io.proleap.vb6.asg.metamodel.Program;
 import io.proleap.vb6.asg.metamodel.Scope;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
 import io.proleap.vb6.asg.metamodel.call.EnumerationCall;
 import io.proleap.vb6.asg.metamodel.impl.ScopedElementImpl;
 import io.proleap.vb6.asg.metamodel.statement.StatementType;
@@ -28,6 +29,8 @@ import io.proleap.vb6.asg.metamodel.statement.enumeration.Enumeration;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.EnumerationConstant;
 import io.proleap.vb6.asg.metamodel.type.Type;
 import io.proleap.vb6.asg.metamodel.valuestmt.ValueStmt;
+import io.proleap.vb6.asg.resolver.impl.NameResolverImpl;
+import io.proleap.vb6.asg.resolver.impl.TypeResolverImpl;
 
 public class EnumerationImpl extends ScopedElementImpl implements Enumeration {
 
@@ -43,14 +46,18 @@ public class EnumerationImpl extends ScopedElementImpl implements Enumeration {
 
 	protected final String name;
 
-	protected final StatementType statementType = StatementTypeEnum.Enumeration;
+	protected final StatementType statementType = StatementTypeEnum.ENUMERATION;
 
-	public EnumerationImpl(final String name, final Module module, final EnumerationStmtContext ctx) {
-		super(module, module, ctx);
+	protected final VisibilityEnum visibility;
+
+	public EnumerationImpl(final String name, final VisibilityEnum visibility, final Module module,
+			final EnumerationStmtContext ctx) {
+		super(module.getProgram(), module, module, ctx);
 
 		this.ctx = ctx;
 		this.module = module;
 		this.name = name;
+		this.visibility = visibility;
 	}
 
 	@Override
@@ -75,20 +82,21 @@ public class EnumerationImpl extends ScopedElementImpl implements Enumeration {
 		final EnumerationConstant enumerationConstant = new EnumerationConstantImpl(name, position, this, ctx);
 
 		enumerationConstantsByCtx.put(ctx, enumerationConstant);
-		enumerationConstantsSymbolTable.put(name, enumerationConstant);
+		enumerationConstantsSymbolTable.put(getSymbol(name), enumerationConstant);
 
-		VbParserContext.getInstance().getASGElementRegistry().addASGElement(enumerationConstant);
+		module.getProgram().getASGElementRegistry().addASGElement(enumerationConstant);
 
 		final ValueStmt valueStmt = module.addValueStmt(ctx.valueStmt());
 		enumerationConstant.setValueStmt(valueStmt);
 	}
 
-	protected String determineName(final ParseTree ctx) {
-		return VbParserContext.getInstance().getNameResolver().determineName(ctx);
+	protected String determineName(final ParserRuleContext ctx) {
+		return new NameResolverImpl().determineName(ctx);
 	}
 
-	protected Type determineType(final ParseTree ctx) {
-		return VbParserContext.getInstance().getTypeResolver().determineType(ctx);
+	protected Type determineType(final ParserRuleContext ctx) {
+		final Program program = module.getProgram();
+		return new TypeResolverImpl().determineType(ctx, program);
 	}
 
 	@Override
@@ -108,7 +116,7 @@ public class EnumerationImpl extends ScopedElementImpl implements Enumeration {
 
 	@Override
 	public EnumerationConstant getEnumerationConstant(final String name) {
-		return enumerationConstantsSymbolTable.get(name);
+		return enumerationConstantsSymbolTable.get(getSymbol(name));
 	}
 
 	@Override
@@ -134,6 +142,11 @@ public class EnumerationImpl extends ScopedElementImpl implements Enumeration {
 	@Override
 	public StatementType getStatementType() {
 		return statementType;
+	}
+
+	@Override
+	public VisibilityEnum getVisibility() {
+		return visibility;
 	}
 
 	@Override

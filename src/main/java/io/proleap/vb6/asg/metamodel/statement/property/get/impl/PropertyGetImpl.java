@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.property.get.impl;
@@ -14,8 +14,10 @@ import java.util.List;
 import java.util.Set;
 
 import io.proleap.vb6.VisualBasic6Parser.PropertyGetStmtContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.asg.inference.impl.TypeInferenceImpl;
 import io.proleap.vb6.asg.metamodel.Module;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
+import io.proleap.vb6.asg.metamodel.call.Call;
 import io.proleap.vb6.asg.metamodel.call.PropertyGetCall;
 import io.proleap.vb6.asg.metamodel.impl.ProcedureImpl;
 import io.proleap.vb6.asg.metamodel.statement.StatementType;
@@ -31,18 +33,19 @@ public class PropertyGetImpl extends ProcedureImpl implements PropertyGet {
 
 	protected final List<PropertyGetCall> propertyGetCalls = new ArrayList<PropertyGetCall>();
 
-	protected final StatementType statementType = StatementTypeEnum.PropertyGet;
+	protected final StatementType statementType = StatementTypeEnum.PROPERTY_GET;
 
 	protected final Type type;
 
 	/*
-	 * LinkedHashSet, so that entries are ordered by their insertion order,
-	 * giving precedence to types declared near to the assigned variable
+	 * LinkedHashSet, so that entries are ordered by their insertion order, giving
+	 * precedence to types declared near to the assigned variable
 	 */
 	protected Set<Type> typesOfAssignedValues = new LinkedHashSet<Type>();
 
-	public PropertyGetImpl(final String name, final Type type, final Module module, final PropertyGetStmtContext ctx) {
-		super(name, module, ctx);
+	public PropertyGetImpl(final String name, final VisibilityEnum visibility, final Type type, final Module module,
+			final PropertyGetStmtContext ctx) {
+		super(name, visibility, module, ctx);
 
 		this.ctx = ctx;
 		this.type = type;
@@ -58,6 +61,11 @@ public class PropertyGetImpl extends ProcedureImpl implements PropertyGet {
 		if (type != null) {
 			typesOfAssignedValues.add(type);
 		}
+	}
+
+	@Override
+	public List<Call> getCalls() {
+		return new ArrayList<>(getPropertyGetCalls());
 	}
 
 	@Override
@@ -77,9 +85,8 @@ public class PropertyGetImpl extends ProcedureImpl implements PropertyGet {
 
 	@Override
 	public Type getType() {
-		final Type defType = VbParserContext.getInstance().getTypeInference().inferTypeFromDefType(module, name);
-		final Type result = VbParserContext.getInstance().getTypeInference().inferType(type, defType,
-				typesOfAssignedValues);
+		final Type defType = new TypeInferenceImpl().inferTypeFromDefType(module, name);
+		final Type result = new TypeInferenceImpl().inferType(type, defType, typesOfAssignedValues);
 		return result;
 	}
 

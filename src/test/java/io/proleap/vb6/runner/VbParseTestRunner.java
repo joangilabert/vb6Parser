@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.runner;
@@ -13,7 +13,6 @@ import java.io.IOException;
 
 public interface VbParseTestRunner {
 
-	public void parseDirectory(File inputDirectory) throws IOException;
+	void parseFile(File inputFile) throws IOException;
 
-	public void parseFile(File inputFile) throws IOException;
 }

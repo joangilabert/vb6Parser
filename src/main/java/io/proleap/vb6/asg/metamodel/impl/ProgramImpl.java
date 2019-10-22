@@ -1,38 +1,111 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
 
-import java.util.Collection;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
+import io.proleap.vb6.asg.exception.VbParserException;
 import io.proleap.vb6.asg.metamodel.ClazzModule;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Program;
 import io.proleap.vb6.asg.metamodel.ScopedElement;
 import io.proleap.vb6.asg.metamodel.StandardModule;
+import io.proleap.vb6.asg.metamodel.VisibilityElement;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
+import io.proleap.vb6.asg.metamodel.registry.ASGElementRegistry;
+import io.proleap.vb6.asg.metamodel.registry.EnumerationRegistry;
+import io.proleap.vb6.asg.metamodel.registry.TypeRegistry;
+import io.proleap.vb6.asg.metamodel.registry.api.ApiEnumerationRegistry;
+import io.proleap.vb6.asg.metamodel.registry.api.ApiProcedureRegistry;
+import io.proleap.vb6.asg.metamodel.registry.api.ApiPropertyRegistry;
+import io.proleap.vb6.asg.metamodel.registry.api.impl.ApiEnumerationRegistryImpl;
+import io.proleap.vb6.asg.metamodel.registry.api.impl.ApiProcedureRegistryImpl;
+import io.proleap.vb6.asg.metamodel.registry.api.impl.ApiPropertyRegistryImpl;
+import io.proleap.vb6.asg.metamodel.registry.impl.ASGElementRegistryImpl;
+import io.proleap.vb6.asg.metamodel.registry.impl.EnumerationRegistryImpl;
+import io.proleap.vb6.asg.metamodel.registry.impl.TypeRegistryImpl;
 import io.proleap.vb6.asg.resolver.NameResolver;
 import io.proleap.vb6.asg.resolver.impl.NameResolverImpl;
 
 public class ProgramImpl extends ScopeImpl implements Program {
 
+	protected ApiEnumerationRegistry apiEnumerationRegistry = new ApiEnumerationRegistryImpl();
+
+	protected ApiProcedureRegistry apiProcedureRegistry = new ApiProcedureRegistryImpl();
+
+	protected ApiPropertyRegistry apiPropertyRegistry = new ApiPropertyRegistryImpl();
+
+	protected ASGElementRegistry asgElementRegistry = new ASGElementRegistryImpl();
+
 	protected final Map<String, ClazzModule> clazzModules = new LinkedHashMap<String, ClazzModule>();
+
+	protected EnumerationRegistry enumerationRegistry = new EnumerationRegistryImpl();
 
 	protected final NameResolver nameResolver = new NameResolverImpl();
 
 	protected final Map<String, StandardModule> standardModules = new LinkedHashMap<String, StandardModule>();
 
+	protected TypeRegistry typeRegistry = new TypeRegistryImpl();
+
 	public ProgramImpl() {
-		super(null, null, null);
+		super(null, null, null, null);
+	}
+
+	private List<ScopedElement> filterPrivateScopedElements(final List<ScopedElement> scopedElements) {
+		final List<ScopedElement> result = new ArrayList<ScopedElement>();
+
+		for (final ScopedElement scopedElement : scopedElements) {
+			final boolean isVisibilityElement = scopedElement instanceof VisibilityElement;
+
+			if (!isVisibilityElement) {
+				result.add(scopedElement);
+			} else {
+				final VisibilityElement visibilityElement = (VisibilityElement) scopedElement;
+				final VisibilityEnum visibility = visibilityElement.getVisibility();
+
+				if (visibility == null) {
+				} else {
+					switch (visibility) {
+					case PRIVATE:
+						break;
+					default:
+						result.add(scopedElement);
+						break;
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+
+	@Override
+	public ApiEnumerationRegistry getApiEnumerationRegistry() {
+		return apiEnumerationRegistry;
+	}
+
+	@Override
+	public ApiProcedureRegistry getApiProcedureRegistry() {
+		return apiProcedureRegistry;
+	}
+
+	@Override
+	public ApiPropertyRegistry getApiPropertyRegistry() {
+		return apiPropertyRegistry;
+	}
+
+	@Override
+	public ASGElementRegistry getASGElementRegistry() {
+		return asgElementRegistry;
 	}
 
 	@Override
@@ -44,6 +117,11 @@ public class ProgramImpl extends ScopeImpl implements Program {
 	@Override
 	public Map<String, ClazzModule> getClazzModules() {
 		return clazzModules;
+	}
+
+	@Override
+	public EnumerationRegistry getEnumerationRegistry() {
+		return enumerationRegistry;
 	}
 
 	@Override
@@ -69,8 +147,8 @@ public class ProgramImpl extends ScopeImpl implements Program {
 	}
 
 	@Override
-	public Collection<Module> getModules() {
-		final Set<Module> modules = new HashSet<Module>();
+	public List<Module> getModules() {
+		final List<Module> modules = new ArrayList<Module>();
 
 		modules.addAll(clazzModules.values());
 		modules.addAll(standardModules.values());
@@ -90,17 +168,20 @@ public class ProgramImpl extends ScopeImpl implements Program {
 			// search in modules ...
 			for (final Module module : getModules()) {
 				// ... for scoped elements with name
-				final List<ScopedElement> scopedElement = module.getScopedElementsInScope(name);
+				final List<ScopedElement> scopedElements = module.getScopedElementsInScope(name);
 
 				// ... until there are scoped elements found
-				if (scopedElement != null) {
-					scopedElementsInStandardModule = scopedElement;
-					break;
+				if (scopedElements != null && !scopedElements.isEmpty()) {
+					scopedElementsInStandardModule = filterPrivateScopedElements(scopedElements);
+
+					if (scopedElementsInStandardModule != null && !scopedElementsInStandardModule.isEmpty()) {
+						break;
+					}
 				}
 			}
 
 			// if elements have been found
-			if (scopedElementsInStandardModule != null) {
+			if (scopedElementsInStandardModule != null && !scopedElementsInStandardModule.isEmpty()) {
 				result = scopedElementsInStandardModule;
 			} else {
 				result = super.getScopedElementsInScope(name);
@@ -122,6 +203,11 @@ public class ProgramImpl extends ScopeImpl implements Program {
 	}
 
 	@Override
+	public TypeRegistry getTypeRegistry() {
+		return typeRegistry;
+	}
+
+	@Override
 	public void registerClazzModule(final ClazzModule clazzModule) {
 		final String moduleKey = getModuleKey(clazzModule.getName());
 		clazzModules.put(moduleKey, clazzModule);
@@ -134,7 +220,7 @@ public class ProgramImpl extends ScopeImpl implements Program {
 		} else if (module instanceof StandardModule) {
 			registerStandardModule((StandardModule) module);
 		} else {
-			throw new RuntimeException("unknown module type " + module);
+			throw new VbParserException("unknown module type " + module);
 		}
 	}
 

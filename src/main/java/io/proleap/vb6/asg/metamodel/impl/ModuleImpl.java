@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.impl;
@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.antlr.v4.runtime.CommonTokenStream;
 
 import io.proleap.vb6.VisualBasic6Parser.ArgContext;
 import io.proleap.vb6.VisualBasic6Parser.AttributeStmtContext;
@@ -33,17 +35,18 @@ import io.proleap.vb6.VisualBasic6Parser.PropertySetStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.SubStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.TypeStmtContext;
 import io.proleap.vb6.VisualBasic6Parser.TypeStmt_ElementContext;
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
+import io.proleap.vb6.asg.exception.VbParserException;
 import io.proleap.vb6.asg.metamodel.Attribute;
 import io.proleap.vb6.asg.metamodel.DefType;
 import io.proleap.vb6.asg.metamodel.Literal;
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.ModuleConfigElement;
+import io.proleap.vb6.asg.metamodel.Procedure;
 import io.proleap.vb6.asg.metamodel.ProcedureDeclaration;
 import io.proleap.vb6.asg.metamodel.Program;
 import io.proleap.vb6.asg.metamodel.ScopedElement;
 import io.proleap.vb6.asg.metamodel.TypeElement;
-import io.proleap.vb6.asg.metamodel.VbBaseType;
+import io.proleap.vb6.asg.metamodel.VisibilityEnum;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.Enumeration;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.EnumerationConstant;
 import io.proleap.vb6.asg.metamodel.statement.enumeration.impl.EnumerationImpl;
@@ -58,7 +61,8 @@ import io.proleap.vb6.asg.metamodel.statement.property.set.impl.PropertySetImpl;
 import io.proleap.vb6.asg.metamodel.statement.sub.Sub;
 import io.proleap.vb6.asg.metamodel.statement.sub.impl.SubImpl;
 import io.proleap.vb6.asg.metamodel.type.Type;
-import io.proleap.vb6.asg.util.StringUtils;
+import io.proleap.vb6.asg.metamodel.type.VbBaseType;
+import io.proleap.vb6.asg.util.AsgStringUtils;
 
 public abstract class ModuleImpl extends ScopeImpl implements Module {
 
@@ -76,6 +80,8 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	protected boolean isCollection;
 
+	protected List<String> lines;
+
 	protected List<ModuleConfigElement> moduleConfigElements = new ArrayList<ModuleConfigElement>();
 
 	protected final String name;
@@ -88,6 +94,8 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	protected Boolean optionPrivateModule;
 
+	protected List<Procedure> procedures = new ArrayList<Procedure>();
+
 	protected final Program program;
 
 	protected Map<String, PropertyGet> propertyGets = new HashMap<String, PropertyGet>();
@@ -98,16 +106,20 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	protected Map<String, Sub> subs = new HashMap<String, Sub>();
 
-	protected final Map<String, Type> types = new HashMap<String, Type>();
+	protected CommonTokenStream tokens;
+
+	protected final Map<String, io.proleap.vb6.asg.metamodel.Type> types = new HashMap<String, io.proleap.vb6.asg.metamodel.Type>();
 
 	protected Double version;
 
-	public ModuleImpl(final String name, final Program program, final ModuleContext ctx) {
-		super(null, program, ctx);
+	public ModuleImpl(final String name, final Program program, final CommonTokenStream tokens,
+			final ModuleContext ctx) {
+		super(program, null, program, ctx);
 
 		this.name = name;
 		this.program = program;
 		this.ctx = ctx;
+		this.tokens = tokens;
 		module = this;
 
 		registerASGElement(this);
@@ -124,10 +136,10 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 			result = new AttributeImpl(name, type, this, this, ctx);
 
 			registerScopedElement(result);
-			attributes.put(name, result);
+			attributes.put(getSymbol(name), result);
 
 			final Literal literal = addLiteral(ctx.literal(0));
-			result.setValue(literal);
+			result.setLiteral(literal);
 		}
 
 		return result;
@@ -185,7 +197,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 			} else if (ctx.DEFVAR() != null) {
 				vbType = VbBaseType.VARIANT;
 			} else {
-				throw new RuntimeException("unknown deftype " + ctx);
+				throw new VbParserException("unknown deftype " + ctx);
 			}
 
 			result = new DefTypeImpl(vbType);
@@ -216,11 +228,14 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			result = new EnumerationImpl(name, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.publicPrivateVisibility());
+			result = new EnumerationImpl(name, visibility, this, ctx);
 
 			registerStatement(result);
-			enumerations.put(name, result);
-			VbParserContext.getInstance().getTypeRegistry().registerType(result);
+			enumerations.put(getSymbol(name), result);
+
+			getProgram().getTypeRegistry().registerType(result);
+			getProgram().getEnumerationRegistry().registerEnumeration(result);
 		}
 
 		return result;
@@ -233,10 +248,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 		if (result == null) {
 			final String name = determineName(ctx);
 			final Type type = determineType(ctx.asTypeClause());
-			result = new FunctionImpl(name, type, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new FunctionImpl(name, visibility, type, this, ctx);
 
 			registerStatement(result);
-			functions.put(name, result);
+			functions.put(getSymbol(name), result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -280,13 +298,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	@Override
 	public void addModuleHeader(final ModuleHeaderContext ctx) {
 		final String versionString = ctx.DOUBLELITERAL().getText();
-		version = StringUtils.parseDouble(versionString);
+		version = AsgStringUtils.parseDouble(versionString);
 	}
 
 	@Override
 	public void addOptionBase(final OptionBaseStmtContext ctx) {
 		final String optionBaseString = ctx.INTEGERLITERAL().getText();
-		optionBase = StringUtils.parseInteger(optionBaseString);
+		optionBase = AsgStringUtils.parseInteger(optionBaseString);
 	}
 
 	@Override
@@ -321,10 +339,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 		if (result == null) {
 			final String name = determineName(ctx);
 			final Type type = determineType(ctx.asTypeClause());
-			result = new PropertyGetImpl(name, type, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new PropertyGetImpl(name, visibility, type, this, ctx);
 
 			registerStatement(result);
-			propertyGets.put(name, result);
+			propertyGets.put(getSymbol(name), result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -354,10 +375,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			result = new PropertyLetImpl(name, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new PropertyLetImpl(name, visibility, this, ctx);
 
 			registerStatement(result);
-			propertyLets.put(name, result);
+			propertyLets.put(getSymbol(name), result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -375,10 +399,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			result = new PropertySetImpl(name, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new PropertySetImpl(name, visibility, this, ctx);
 
 			registerStatement(result);
-			propertySets.put(name, result);
+			propertySets.put(getSymbol(name), result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -396,10 +423,13 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			result = new SubImpl(name, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new SubImpl(name, visibility, this, ctx);
 
 			registerStatement(result);
-			subs.put(name, result);
+			subs.put(getSymbol(name), result);
+			procedures.add(result);
 
 			if (ctx.argList() != null) {
 				for (final ArgContext argCtx : ctx.argList().arg()) {
@@ -417,7 +447,9 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 		if (result == null) {
 			final String name = determineName(ctx);
-			result = new TypeImpl(name, this, ctx);
+			final VisibilityEnum visibility = determineVisibility(ctx.visibility());
+
+			result = new TypeImpl(name, visibility, this, ctx);
 
 			for (final TypeStmt_ElementContext typeElementCtx : ctx.typeStmt_Element()) {
 				final TypeElement typeElement = addTypeElement(typeElementCtx);
@@ -425,7 +457,8 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 			}
 
 			registerScopedElement(result);
-			types.put(name, result);
+			types.put(getSymbol(name), result);
+			program.getTypeRegistry().registerType(result);
 		}
 
 		return result;
@@ -464,6 +497,11 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	}
 
 	@Override
+	public Enumeration getEnumeration(final String name) {
+		return enumerations.get(getSymbol(name));
+	}
+
+	@Override
 	public EnumerationConstant getEnumerationConstant(final String name) {
 		for (final Enumeration enumeration : enumerations.values()) {
 			if (enumeration.getEnumerationConstant(name) != null) {
@@ -481,12 +519,27 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	@Override
 	public Function getFunction(final String name) {
-		return functions.get(name);
+		return functions.get(getSymbol(name));
+	}
+
+	@Override
+	public List<Function> getFunctions() {
+		return new ArrayList<>(functions.values());
+	}
+
+	@Override
+	public List<String> getLines() {
+		return lines;
 	}
 
 	@Override
 	public String getName() {
 		return name;
+	}
+
+	@Override
+	public List<Procedure> getProcedures() {
+		return procedures;
 	}
 
 	@Override
@@ -496,17 +549,32 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	@Override
 	public PropertyGet getPropertyGet(final String name) {
-		return propertyGets.get(name);
+		return propertyGets.get(getSymbol(name));
+	}
+
+	@Override
+	public List<PropertyGet> getPropertyGets() {
+		return new ArrayList<>(propertyGets.values());
 	}
 
 	@Override
 	public PropertyLet getPropertyLet(final String name) {
-		return propertyLets.get(name);
+		return propertyLets.get(getSymbol(name));
+	}
+
+	@Override
+	public List<PropertyLet> getPropertyLets() {
+		return new ArrayList<>(propertyLets.values());
 	}
 
 	@Override
 	public PropertySet getPropertySet(final String name) {
-		return propertySets.get(name);
+		return propertySets.get(getSymbol(name));
+	}
+
+	@Override
+	public List<PropertySet> getPropertySets() {
+		return new ArrayList<>(propertySets.values());
 	}
 
 	@Override
@@ -516,7 +584,7 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 		final EnumerationConstant enumerationConstant = getEnumerationConstant(name);
 
 		if (enumerationConstant != null) {
-			result = new ArrayList<ScopedElement>();
+			result = new ArrayList<>();
 			result.add(enumerationConstant);
 		} else {
 			result = super.getScopedElementsInScope(name);
@@ -527,7 +595,22 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 
 	@Override
 	public Sub getSub(final String name) {
-		return subs.get(name);
+		return subs.get(getSymbol(name));
+	}
+
+	@Override
+	public List<Sub> getSubs() {
+		return new ArrayList<Sub>(subs.values());
+	}
+
+	@Override
+	public CommonTokenStream getTokens() {
+		return tokens;
+	}
+
+	@Override
+	public io.proleap.vb6.asg.metamodel.Type getType(final String name) {
+		return types.get(getSymbol(name));
 	}
 
 	@Override
@@ -550,6 +633,11 @@ public abstract class ModuleImpl extends ScopeImpl implements Module {
 	public boolean isModuleWithMetaData() {
 		return version != null || optionExplicit != null || optionPrivateModule != null || optionBase != null
 				|| optionCompare != null;
+	}
+
+	@Override
+	public void setLines(final List<String> lines) {
+		this.lines = lines;
 	}
 
 	@Override

@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.api.impl;
@@ -13,10 +13,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.proleap.vb6.asg.applicationcontext.VbParserContext;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumeration;
 import io.proleap.vb6.asg.metamodel.api.ApiEnumerationConstant;
 import io.proleap.vb6.asg.metamodel.call.ApiEnumerationCall;
+import io.proleap.vb6.asg.resolver.impl.TypeNameSanitizerImpl;
 
 public class ApiEnumerationImpl implements ApiEnumeration {
 
@@ -47,7 +47,7 @@ public class ApiEnumerationImpl implements ApiEnumeration {
 	}
 
 	private String getKey(final String name) {
-		final String sanitizedTypeName = VbParserContext.getInstance().getTypeNameSanitizer().sanitize(name);
+		final String sanitizedTypeName = new TypeNameSanitizerImpl().sanitize(name);
 		return sanitizedTypeName.toLowerCase();
 	}
 

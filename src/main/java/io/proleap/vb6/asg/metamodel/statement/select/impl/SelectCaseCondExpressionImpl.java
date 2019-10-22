@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.statement.select.impl;
@@ -32,7 +32,7 @@ public class SelectCaseCondExpressionImpl extends ScopedElementImpl implements S
 
 	public SelectCaseCondExpressionImpl(final SelectCaseCondExpressionType selectCaseCondExpressionType,
 			final Module module, final Scope scope, final SC_CondExprContext ctx) {
-		super(module, scope, ctx);
+		super(module.getProgram(), module, scope, ctx);
 
 		this.ctx = ctx;
 		this.selectCaseCondExpressionType = selectCaseCondExpressionType;

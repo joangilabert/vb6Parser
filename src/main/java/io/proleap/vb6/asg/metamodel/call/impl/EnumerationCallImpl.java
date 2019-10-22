@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.call.impl;
 
-import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.ParserRuleContext;
 
 import io.proleap.vb6.asg.metamodel.Module;
 import io.proleap.vb6.asg.metamodel.Scope;
@@ -21,7 +21,7 @@ public class EnumerationCallImpl extends CallImpl implements EnumerationCall {
 	protected Enumeration enumeration;
 
 	public EnumerationCallImpl(final String name, final Enumeration enumeration, final Module module,
-			final Scope scope, final ParseTree ctx) {
+			final Scope scope, final ParserRuleContext ctx) {
 		super(name, module, scope, ctx);
 
 		this.enumeration = enumeration;
@@ -29,7 +29,7 @@ public class EnumerationCallImpl extends CallImpl implements EnumerationCall {
 
 	@Override
 	public CallType getCallType() {
-		return CallType.EnumerationCall;
+		return CallType.ENUMERATION_CALL;
 	}
 
 	@Override

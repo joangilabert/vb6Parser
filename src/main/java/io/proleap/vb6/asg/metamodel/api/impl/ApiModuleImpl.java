@@ -1,9 +1,9 @@
 /*
- * Copyright (C) 2016, Ulrich Wolffgang <u.wol@wwu.de>
+ * Copyright (C) 2017, Ulrich Wolffgang <ulrich.wolffgang@proleap.io>
  * All rights reserved.
  *
  * This software may be modified and distributed under the terms
- * of the BSD 3-clause license. See the LICENSE file for details.
+ * of the MIT license. See the LICENSE file for details.
  */
 
 package io.proleap.vb6.asg.metamodel.api.impl;
@@ -21,9 +21,9 @@ public class ApiModuleImpl implements ApiModule {
 
 	protected final String name;
 
-	protected final Map<String, ApiProcedure> procedures = new HashMap<String, ApiProcedure>();
+	protected final Map<String, ApiProcedure> procedures = new HashMap<>();
 
-	protected final Map<String, ApiProperty> properties = new HashMap<String, ApiProperty>();
+	protected final Map<String, ApiProperty> properties = new HashMap<>();
 
 	public ApiModuleImpl(final String name, final boolean isCollection) {
 		this.name = name;
@@ -72,5 +72,4 @@ public class ApiModuleImpl implements ApiModule {
 	public String toString() {
 		return "name=[" + name + "]";
 	}
-
 }
